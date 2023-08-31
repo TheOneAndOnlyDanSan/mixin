@@ -1,0 +1,38 @@
+plugins {
+    id 'java'
+    id 'application'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation "org.junit.jupiter:junit-jupiter-api:${project.junit}"
+    testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${project.junit}"
+
+    implementation "org.ow2.asm:asm:${project.asm}"
+
+    implementation fileTree(dir: 'libs', include: '*.jar')
+}
+
+jar {
+    archivesBaseName = "mixin"
+
+    manifest {
+        attributes 'Main-Class': 'test.Main'
+        attributes 'Launcher-Agent-Class': 'mixin.Agent'
+        attributes 'Agent-Class': 'mixin.Agent'
+        attributes 'Premain-Class': 'mixin.Agent'
+        attributes 'Can-Retransform-Classes': 'true'
+        attributes 'Can-Redefine-Classes': 'true'
+    }
+
+    from {
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+}
+
+test {
+    useJUnitPlatform()
+}
