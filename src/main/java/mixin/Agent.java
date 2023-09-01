@@ -4,6 +4,7 @@ import mixin.annotations.Mixin;
 import reflection.Vars;
 
 import java.lang.instrument.Instrumentation;
+import java.lang.instrument.UnmodifiableClassException;
 import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.List;
@@ -19,6 +20,8 @@ class Agent {
     }
 
     public static void addMixinClass(Class<?> clazz) {
+        if(agent == null || !agent.isRetransformClassesSupported()) throw new IllegalStateException();
+
         Class<?> targetClass = clazz.getAnnotation(Mixin.class).value();
 
         if(!targetClass.isHidden() && !targetClass.isArray() && !targetClass.isPrimitive() && !targetClass.isAnonymousClass() && !targetClass.getName().equals("jdk.internal.vm.Continuation")) {
@@ -29,20 +32,24 @@ class Agent {
 
             try {
                 agent.retransformClasses(clazz);
+                agent.retransformClasses(targetClass);
             } catch(Throwable e) {
-                System.out.println(clazz);
                 e.printStackTrace();
             }
         }
     }
 
-    public static void premain(String agentArgs, Instrumentation instrumentation) {
+    private static void init(Instrumentation instrumentation) {
         agent = instrumentation;
         instrumentation.addTransformer(new MixinTransformer(), true);
     }
 
+    public static void premain(String agentArgs, Instrumentation instrumentation) {
+        init(instrumentation);
+    }
+
     public static void agentmain(String agentArgs, Instrumentation instrumentation) {
-        premain(agentArgs, instrumentation);
+        init(instrumentation);
     }
 }
 

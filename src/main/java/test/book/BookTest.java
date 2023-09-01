@@ -21,8 +21,6 @@ public class BookTest {
     public static void getWithMixin() {
         Book book = new Book("x", 1999, 100.1);
 
-        Book x = book.get();
-
-        if(x != BookMixin.book) throw new RuntimeException();
+        if(book.get() != BookMixin.book) throw new RuntimeException();
     }
 }

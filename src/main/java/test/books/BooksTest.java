@@ -1,8 +1,6 @@
 package test.books;
 
 import mixin.ClassInjector;
-import test.book.Book;
-import test.book.BookMixin;
 
 public class BooksTest {
 

@@ -1,6 +1,5 @@
 package test.books;
 
-import mixin.MixinTransformer;
 import test.book.Book;
 
 import java.util.ArrayList;
@@ -8,7 +7,11 @@ import java.util.List;
 
 public class Books {
 
-    public List<Book> books = new ArrayList<>();
+    private List<Book> books = new ArrayList<>();
+
+    private List<Book> getBooks() {
+        return books;
+    }
 
     public Books() {
         books.add(new Book("myBook", 2000, 100));
