@@ -1,8 +1,9 @@
 package mixin;
 
+import mixin.annotations.Method.MethodAnnotations;
 import mixin.annotations.Mixin;
 import mixin.annotations.Overwrite;
-import mixin.annotations.Shadow.ShadowMethod;
+import mixin.annotations.Method.ShadowMethod;
 import org.objectweb.asm.*;
 import reflection.ClassReflection;
 import reflection.MethodReflection;
@@ -40,19 +41,22 @@ public class ByteManipulator {
         return methods.stream().filter(method -> {
             int isMethod = 0;
             if(method.isAnnotationPresent(Overwrite.class))
-                isMethod = method.getAnnotation(Overwrite.class).value().equals(name + descriptor) ? 1 : 0;
+                isMethod += method.getAnnotation(Overwrite.class).value().equals(name + descriptor) ? 1 : 0;
             if(method.isAnnotationPresent(ShadowMethod.class))
-                isMethod = method.getName().equals(name) && Type.getMethodDescriptor(method).equals(descriptor) ? 1 : 0;
+                isMethod += method.getName().equals(name) && Type.getMethodDescriptor(method).equals(descriptor) ? 1 : 0;
 
-            if(isMethod == 0) return false;
-            if(isMethod == 1) return true;
-            if(isMethod > 1) throw new RuntimeException(method.getName() + " cannot be mixin more than once");
-            return false;
+            return isMethod != 0;
         }).toList();
     }
 
-    private static void copyAnnotations(MethodVisitor methodVisitor, Method method) {
-        Annotation[] annotations = method.getDeclaredAnnotations();
+    private static void addAnnotations(MethodVisitor methodVisitor, Method mixinMethod, Method targetMethod) {
+        Annotation[] annotations;
+
+        if(mixinMethod != null) {
+            annotations = (Annotation[]) useMethod(mixinMethod, null, new Object[mixinMethod.getParameterCount()]);
+        } else {
+            annotations = targetMethod.getDeclaredAnnotations();
+        }
 
         for(Annotation annotation : annotations) {
             AnnotationVisitor annotationVisitor = methodVisitor.visitAnnotation("L" + annotation.annotationType().getName().replace(".", "/") + ";", true);
@@ -60,7 +64,13 @@ public class ByteManipulator {
             for(Method m : getMethods(annotation.annotationType(), false)) {
                 annotationVisitor.visit(m.getName(), useMethod(m, annotation));
             }
+
+            annotationVisitor.visitEnd();
         }
+    }
+
+    private static List<Method> getAnnotationMethod(List<Method> methods, String name, String descriptor) {
+        return methods.stream().filter(method -> method.isAnnotationPresent(MethodAnnotations.class) && method.getAnnotation(MethodAnnotations.class).value().equals(name + descriptor)).toList();
     }
 
     private static byte[] getMixinedClass(Class<?> targetClass, Class<?> mixinClass, byte[] originalByteCode) {
@@ -77,14 +87,21 @@ public class ByteManipulator {
 
                     if(methods.size() > 1) throw new RuntimeException(name + " cannot be mixined more than once");
 
+
                     if(methods.size() == 0) {
                         return super.visitMethod(access, name, descriptor, signature, exceptions);
                     } else {
+                        Method mixinMethod = methods.get(0);
+
+                        Method targetMethod = getMethod(getClassByName(classReader.getClassName().replace("/", ".")), name, Arrays.stream(Type.getArgumentTypes(descriptor)).map(type -> getClassByName(type.getClassName())).toArray(Class[]::new));
+
                         MethodVisitor methodVisitor = classWriter.visitMethod(access, name, descriptor, signature, exceptions);
 
-                        copyAnnotations(methodVisitor, getMethod(getClassByName(classReader.getClassName().replace("/", ".")), name, Arrays.stream(Type.getArgumentTypes(descriptor)).map(type -> getClassByName(type.getClassName())).toArray(Class[]::new)));
+                        List<Method> annotationsMethod = getAnnotationMethod(Arrays.stream(mixinClass.getDeclaredMethods()).toList(), name, descriptor);
+                        if(annotationsMethod.size() > 1) throw new RuntimeException(name + " connot have more than 1 annotation method");
 
-                        Method mixinMethod = methods.get(0);
+                        addAnnotations(methodVisitor, annotationsMethod.size() == 1 ? annotationsMethod.get(0) : null, targetMethod);
+
                         if(!Modifier.isStatic(mixinMethod.getModifiers()))
                             throw new RuntimeException(mixinClass.getName() + "." + mixinMethod.getName() + " must be static");
 

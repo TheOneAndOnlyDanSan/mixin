@@ -2,7 +2,7 @@ package test.books;
 
 import mixin.annotations.Mixin;
 import mixin.annotations.Overwrite;
-import mixin.annotations.Shadow.ShadowMethod;
+import mixin.annotations.Method.ShadowMethod;
 import test.book.Book;
 
 import java.util.List;

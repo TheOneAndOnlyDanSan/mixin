@@ -13,10 +13,6 @@ dependencies {
     implementation fileTree(dir: 'libs', include: '*.jar')
 }
 
-applicationDefaultJvmArgs = [
-        "-javaagent:D:\\Desktop\\mixin\\build\\libs\\mixin.jar"
-]
-
 jar {
     archivesBaseName = "mixin"
 
