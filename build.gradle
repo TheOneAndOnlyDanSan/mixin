@@ -8,13 +8,14 @@ repositories {
 }
 
 dependencies {
-    testImplementation "org.junit.jupiter:junit-jupiter-api:${project.junit}"
-    testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:${project.junit}"
-
     implementation "org.ow2.asm:asm:${project.asm}"
 
     implementation fileTree(dir: 'libs', include: '*.jar')
 }
+
+applicationDefaultJvmArgs = [
+        "-javaagent:D:\\Desktop\\mixin\\build\\libs\\mixin.jar"
+]
 
 jar {
     archivesBaseName = "mixin"
@@ -31,8 +32,4 @@ jar {
     from {
         configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
     }
-}
-
-test {
-    useJUnitPlatform()
 }
