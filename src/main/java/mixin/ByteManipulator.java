@@ -227,7 +227,6 @@ public class ByteManipulator {
             mv.visitMethodInsn(INVOKEVIRTUAL, className, returnType.getClassName() + "Value", "()" + charType, false);
             mv.visitInsn(returnPrimitive);
         } else {
-
             mv.visitTypeInsn(CHECKCAST, returnType.getInternalName());
             mv.visitInsn(ARETURN);
         }
