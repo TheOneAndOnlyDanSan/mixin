@@ -4,17 +4,23 @@ import mixin.annotations.Mixin;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
 import reflection.ClassReflection;
+import reflection.FieldReflection;
 import reflection.MethodReflection;
 import java.io.IOException;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.UnmodifiableClassException;
 import java.lang.reflect.Array;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.security.ProtectionDomain;
 import java.util.Arrays;
 
 import static mixin.Agent.mixined;
 import static org.objectweb.asm.Opcodes.*;
+import static reflection.ClassReflection.getClassByName;
+import static reflection.FieldReflection.getFieldValue;
+import static reflection.FieldReflection.setFieldValue;
+import static reflection.MethodReflection.getMethod;
 
 public class MixinTransformer implements ClassFileTransformer {
 
@@ -29,10 +35,10 @@ public class MixinTransformer implements ClassFileTransformer {
         mixined.add(classBeingRedefined);
 
         if(classBeingRedefined.isAnnotationPresent(Mixin.class)) {
-            classfileBuffer = ByteManipulator.getMixinMixin(classBeingRedefined, classfileBuffer);
+            classfileBuffer = new MixinByteManipulator(classBeingRedefined, classfileBuffer).getMixinedClass();
         }
         if(Agent.mixinClasses.containsKey(classBeingRedefined)) {
-            classfileBuffer = ByteManipulator.getTargetMixin(classBeingRedefined, classfileBuffer);
+            classfileBuffer = new TargetByteManipulator(classBeingRedefined, classfileBuffer).getMixinedClass();
         }
 
         try {
