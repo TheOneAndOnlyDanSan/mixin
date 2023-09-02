@@ -4,7 +4,6 @@ import mixin.annotations.Mixin;
 import reflection.Vars;
 
 import java.lang.instrument.Instrumentation;
-import java.lang.instrument.UnmodifiableClassException;
 import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.List;
