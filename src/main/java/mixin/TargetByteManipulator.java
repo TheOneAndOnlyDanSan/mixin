@@ -4,17 +4,19 @@ import mixin.annotations.Method.AnnotationsMethod;
 import mixin.annotations.Method.OverwriteMethod;
 import mixin.annotations.field.AnnotationsField;
 import org.objectweb.asm.*;
+import org.objectweb.asm.Type;
+import reflection.ConstructorReflection;
 import reflection.FieldReflection;
 
 import java.lang.annotation.Annotation;
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
+import java.lang.reflect.*;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.objectweb.asm.Opcodes.*;
 import static reflection.ClassReflection.getClassByName;
+import static reflection.ConstructorReflection.getConstructor;
 import static reflection.MethodReflection.*;
 
 public class TargetByteManipulator extends AbstractByteManipulator {
@@ -44,7 +46,7 @@ public class TargetByteManipulator extends AbstractByteManipulator {
         return methodList.size() == 1 ? methodList.get(0) : null;
     }
 
-    private void addAnnotationsToMethod(MethodVisitor methodVisitor, Method mixinMethod, Method targetMethod) {
+    private void addAnnotationsToMethod(MethodVisitor methodVisitor, Method mixinMethod, Executable targetMethod) {
         Annotation[] annotations;
 
         if(mixinMethod != null) {
@@ -100,6 +102,11 @@ public class TargetByteManipulator extends AbstractByteManipulator {
         return methods.size() == 1 ? methods.get(0) : null;
     }
 
+    private String getDescriptor(Executable e) {
+        if(e.getClass() == Method.class) return Type.getMethodDescriptor((Method) e);
+        else return Type.getConstructorDescriptor((Constructor<?>) e);
+    }
+
     public byte[] getMixinedClass() {
         try {
             ClassReader classReader = new ClassReader(originalByteCode);
@@ -108,31 +115,41 @@ public class TargetByteManipulator extends AbstractByteManipulator {
             classReader.accept(new ClassVisitor(ASM9, classWriter) {
                 @Override
                 public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
-                    if(name.equals("<init>") || name.equals("<clinit>")) return super.visitMethod(access, name, descriptor, signature, exceptions);
-                    MethodVisitor methodVisitor;
+                    MethodVisitor methodVisitor = super.visitMethod(access, name, descriptor, signature, exceptions);
 
                     Method mixinMethod = filterMethods(Arrays.stream(mixinClass.getDeclaredMethods()).toList(), name, descriptor);
-
-                    if(mixinMethod == null) {
-                        methodVisitor = super.visitMethod(access, name, descriptor, signature, exceptions);
-                    } else {
-                        methodVisitor = classWriter.visitMethod(access, name, descriptor, signature, exceptions);
-
-                        if(!Modifier.isStatic(mixinMethod.getModifiers()))
-                            throw new RuntimeException(mixinClass.getName() + "." + mixinMethod.getName() + " must be static");
-
-                        if(mixinMethod.isAnnotationPresent(OverwriteMethod.class))
-                            OverwriteMethodHandler.generateMethodBytecode(mixinMethod.getName(), Type.getMethodDescriptor(mixinMethod), (access & ACC_STATIC) != 0, mixinClass, methodVisitor);
-                    }
-
-                    Method targetMethod = getMethod(getClassByName(classReader.getClassName().replace("/", ".")), name, Arrays.stream(Type.getArgumentTypes(descriptor)).map(type -> getClassByName(type.getClassName())).toArray(Class[]::new));
                     Method annotationsMethod = getAnnotationMethodSetter(Arrays.stream(mixinClass.getDeclaredMethods()).toList(), name, descriptor);
+
+                    Executable targetMethod;
+                    if(name.equals("<init>")) {
+                        targetMethod = getConstructor(getClassByName(classReader.getClassName().replace("/", ".")), Arrays.stream(Type.getArgumentTypes(descriptor)).map(type -> getClassByName(type.getClassName())).toArray(Class[]::new));
+                    } else {
+                        targetMethod = getMethod(getClassByName(classReader.getClassName().replace("/", ".")), name, Arrays.stream(Type.getArgumentTypes(descriptor)).map(type -> getClassByName(type.getClassName())).toArray(Class[]::new));
+                    }
 
                     if(annotationsMethod != null) {
                         addAnnotationsToMethod(methodVisitor, annotationsMethod, targetMethod);
                     }
 
-                    return methodVisitor;
+                    if(mixinMethod == null) {
+                        return methodVisitor;
+                    } else {
+                        if(annotationsMethod != null) {
+                            addAnnotationsToMethod(methodVisitor, annotationsMethod, targetMethod);
+                        }
+
+                        if(!Modifier.isStatic(mixinMethod.getModifiers()))
+                            throw new RuntimeException(mixinClass.getName() + "." + mixinMethod.getName() + " must be static");
+
+                        if(targetMethod.getClass() == Constructor.class) {
+                            ConstructorSetupHandler.generateMethodBytecode(methodVisitor);
+                        }
+
+                        if(mixinMethod.isAnnotationPresent(OverwriteMethod.class))
+                            OverwriteMethodHandler.generateMethodBytecode(mixinMethod.getName(), getDescriptor(mixinMethod), (access & ACC_STATIC) != 0, mixinClass, methodVisitor);
+
+                        return null;
+                    }
                 }
 
                 @Override
@@ -157,6 +174,14 @@ public class TargetByteManipulator extends AbstractByteManipulator {
         }
 
       return null;
+    }
+
+    private static class ConstructorSetupHandler {
+
+        public static void generateMethodBytecode(MethodVisitor mv) {
+            mv.visitVarInsn(ALOAD, 0);
+            mv.visitMethodInsn(INVOKESPECIAL,"java/lang/Object", "<init>", "()V", false);
+        }
     }
 
     private static class OverwriteMethodHandler {

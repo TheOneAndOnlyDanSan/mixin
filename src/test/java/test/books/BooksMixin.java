@@ -8,6 +8,7 @@ import mixin.annotations.field.ShadowField;
 import test.book.Book;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 @Mixin(Books.class)
@@ -19,24 +20,30 @@ public class BooksMixin {
     }
 
     @ShadowField("books")
-    private static List<Book> books(Books books) {
+    public static List<Book> books(Books books) {
         return null;
     }
 
-    @ShadowMethod
-    private static List<Book> getBooks(Books books) {
+    @ShadowMethod("getBooks()Ljava/util/List;")
+    private static List<Book> getBooks1(Books books) {
         return null;
+    }
+
+    @OverwriteMethod("<init>(Ljava/lang/String;)V")
+    private static void books(Books books, String s) {
+        System.out.println(s);
+        setBooks(books, new ArrayList<>());
     }
 
     @OverwriteMethod("find(Ljava/lang/String;)Ljava/util/List;")
     public static List<Book> find(Books books, String name) {
-        if(books(books) != getBooks(books)) throw new RuntimeException();
+        if(books(books) != getBooks1(books)) throw new RuntimeException();
 
         List<Book> oldBookList = books(books);
         setBooks(books, new ArrayList<>(books(books)));
 
         if(oldBookList == books(books)) throw new RuntimeException();
 
-        return getBooks(books).stream().filter(book -> book.name.contains(name)).toList();
+        return getBooks1(books).stream().filter(book -> book.name.contains(name)).toList();
     }
 }

@@ -1,5 +1,6 @@
 package test.books;
 
+import mixin.AbstractByteManipulator;
 import test.book.Book;
 
 import java.util.ArrayList;
@@ -11,6 +12,10 @@ public class Books {
 
     private List<Book> getBooks() {
         return books;
+    }
+
+    public Books(String s) {
+
     }
 
     public Books() {

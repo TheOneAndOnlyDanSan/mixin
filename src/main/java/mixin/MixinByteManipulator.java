@@ -59,7 +59,6 @@ public class MixinByteManipulator extends AbstractByteManipulator {
             classReader.accept(new ClassVisitor(ASM9, classWriter) {
                 @Override
                 public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
-                    if(name.equals("<init>") || name.equals("<clinit>")) return super.visitMethod(access, name, descriptor, signature, exceptions);
                     MethodVisitor methodVisitor;
 
                     Method mixinMethod = filterMethods(Arrays.stream(mixinClass.getDeclaredMethods()).toList(), name, descriptor);
@@ -73,7 +72,7 @@ public class MixinByteManipulator extends AbstractByteManipulator {
                             throw new RuntimeException(mixinClass.getName() + "." + mixinMethod.getName() + " must be static");
 
                         if(mixinMethod.isAnnotationPresent(ShadowMethod.class))
-                            ShadowMethodHandler.generateMethodBytecode(mixinMethod.getName(), removeFirstArgFromDescriptor(mixinMethod), targetClass, (access & ACC_STATIC) != 0, methodVisitor);
+                            ShadowMethodHandler.generateMethodBytecode(mixinMethod.getAnnotation(ShadowMethod.class).value().split("\\(")[0], removeFirstArgFromDescriptor(mixinMethod), targetClass, (access & ACC_STATIC) != 0, methodVisitor);
                         if(mixinMethod.isAnnotationPresent(ShadowField.class))
                             ShadowFieldHandler.generateMethodBytecode(mixinMethod.getAnnotation(ShadowField.class).value(), removeFirstArgFromDescriptor(mixinMethod), targetClass, (access & ACC_STATIC) != 0, methodVisitor);
                         if(mixinMethod.isAnnotationPresent(OverwriteField.class))

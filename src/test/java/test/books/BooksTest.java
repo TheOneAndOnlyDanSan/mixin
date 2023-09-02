@@ -14,6 +14,8 @@ public class BooksTest {
         ClassInjector.addClasses(BooksMixin.class);
 
         findWithMixin();
+
+        System.out.println(BooksMixin.books(new Books("print")));
     }
 
     public static void findWithoutMixin() {
