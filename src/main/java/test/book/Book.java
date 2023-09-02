@@ -11,7 +11,6 @@ public class Book {
         this.cost = cost;
     }
 
-    @Deprecated
     public Book get() {
         return this;
     }

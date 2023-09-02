@@ -5,7 +5,7 @@ import mixin.ClassInjector;
 public class BooksTest {
 
     public static void test() {
-        findWithoutMixin();
+        //findWithoutMixin();
 
         ClassInjector.addClasses(BooksMixin.class);
 

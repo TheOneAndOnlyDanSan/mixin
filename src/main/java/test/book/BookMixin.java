@@ -1,8 +1,9 @@
 package test.book;
 
-import mixin.annotations.Method.MethodAnnotations;
+import mixin.annotations.Method.AnnotationsMethod;
 import mixin.annotations.Mixin;
-import mixin.annotations.Overwrite;
+import mixin.annotations.Method.OverwriteMethod;
+import mixin.annotations.field.AnnotationsField;
 
 import java.lang.annotation.Annotation;
 import java.util.Map;
@@ -13,12 +14,17 @@ import static mixin.Util.getAnnotation;
 public class BookMixin {
     public static Book book = new Book("bookMixin", 2000, 101.1);
 
-    @MethodAnnotations("get()Ltest/book/Book;")
-    public static Annotation[] get() {
+    @AnnotationsField("name")
+    public static Annotation[] nameAnnotations() {
         return new Annotation[]{getAnnotation(Deprecated.class), getAnnotation(Deprecated.class, Map.ofEntries(Map.entry("since", "1")))};
     }
 
-    @Overwrite("get()Ltest/book/Book;")
+    @AnnotationsMethod("get()Ltest/book/Book;")
+    public static Annotation[] getAnnotations() {
+        return new Annotation[]{getAnnotation(Deprecated.class), getAnnotation(Deprecated.class, Map.ofEntries(Map.entry("since", "1")))};
+    }
+
+    @OverwriteMethod("get()Ltest/book/Book;")
     public static Book get(Book book1) {
         return book;
     }
