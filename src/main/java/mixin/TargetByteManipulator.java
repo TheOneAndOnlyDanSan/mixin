@@ -2,9 +2,11 @@ package mixin;
 
 import mixin.annotations.Method.AnnotationsMethod;
 import mixin.annotations.Method.OverwriteMethod;
+import mixin.annotations.Method.ReturnValueMethod;
 import mixin.annotations.field.AnnotationsField;
 import org.objectweb.asm.*;
 import org.objectweb.asm.Type;
+import reflection.ClassReflection;
 import reflection.ConstructorReflection;
 import reflection.FieldReflection;
 
@@ -15,6 +17,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.objectweb.asm.Opcodes.*;
+import static org.objectweb.asm.Type.getArgumentTypes;
 import static reflection.ClassReflection.getClassByName;
 import static reflection.ConstructorReflection.getConstructor;
 import static reflection.MethodReflection.*;
@@ -37,6 +40,8 @@ public class TargetByteManipulator extends AbstractByteManipulator {
             int isMethod = 0;
             if(method.isAnnotationPresent(OverwriteMethod.class))
                 isMethod += method.getAnnotation(OverwriteMethod.class).value().equals(name + descriptor) ? 1 : 0;
+            if(method.isAnnotationPresent(ReturnValueMethod.class))
+                isMethod += method.getAnnotation(ReturnValueMethod.class).value().equals(name + descriptor) ? 1 : 0;
 
             return isMethod != 0;
         }).toList();
@@ -120,22 +125,23 @@ public class TargetByteManipulator extends AbstractByteManipulator {
                     Method mixinMethod = filterMethods(Arrays.stream(mixinClass.getDeclaredMethods()).toList(), name, descriptor);
                     Method annotationsMethod = getAnnotationMethodSetter(Arrays.stream(mixinClass.getDeclaredMethods()).toList(), name, descriptor);
 
+
                     Executable targetMethod;
                     if(name.equals("<init>")) {
-                        targetMethod = getConstructor(getClassByName(classReader.getClassName().replace("/", ".")), Arrays.stream(Type.getArgumentTypes(descriptor)).map(type -> getClassByName(type.getClassName())).toArray(Class[]::new));
+                        targetMethod = getConstructor(getClassByName(classReader.getClassName().replace("/", ".")), Arrays.stream(getArgumentTypes(descriptor)).map(type -> getClassByName(type.getClassName())).toArray(Class[]::new));
                     } else {
-                        targetMethod = getMethod(getClassByName(classReader.getClassName().replace("/", ".")), name, Arrays.stream(Type.getArgumentTypes(descriptor)).map(type -> getClassByName(type.getClassName())).toArray(Class[]::new));
-                    }
-
-                    if(annotationsMethod != null) {
-                        addAnnotationsToMethod(methodVisitor, annotationsMethod, targetMethod);
+                        targetMethod = getMethod(getClassByName(classReader.getClassName().replace("/", ".")), name, Arrays.stream(getArgumentTypes(descriptor)).map(type -> getClassByName(type.getClassName())).toArray(Class[]::new));
                     }
 
                     if(mixinMethod == null) {
-                        return methodVisitor;
-                    } else {
                         if(annotationsMethod != null) {
                             addAnnotationsToMethod(methodVisitor, annotationsMethod, targetMethod);
+                        }
+
+                        return methodVisitor;
+                    } else {
+                        if(annotationsMethod == null) {
+                            addAnnotationsToMethod(methodVisitor, null, targetMethod);
                         }
 
                         if(!Modifier.isStatic(mixinMethod.getModifiers()))
@@ -147,6 +153,19 @@ public class TargetByteManipulator extends AbstractByteManipulator {
 
                         if(mixinMethod.isAnnotationPresent(OverwriteMethod.class))
                             OverwriteMethodHandler.generateMethodBytecode(mixinMethod.getName(), getDescriptor(mixinMethod), (access & ACC_STATIC) != 0, mixinClass, methodVisitor);
+                        if(mixinMethod.isAnnotationPresent(ReturnValueMethod.class)) {
+
+                            return new MethodVisitor(Opcodes.ASM9, methodVisitor) {
+                                @Override
+                                public void visitInsn(int opcode) {
+                                    if (opcode <= Opcodes.ARETURN && opcode >= Opcodes.IRETURN) {
+                                        ReturnValueMethodHandler.generateMethodBytecode(mixinMethod.getName(), getDescriptor(mixinMethod), (access & ACC_STATIC) != 0, mixinClass, this, ARETURN-opcode);
+                                    }
+
+                                    super.visitInsn(opcode);
+                                }
+                            };
+                        }
 
                         return null;
                     }
@@ -193,7 +212,7 @@ public class TargetByteManipulator extends AbstractByteManipulator {
 
             mv.visitInsn(ACONST_NULL);
 
-            Type[] parameters = Type.getArgumentTypes(descriptor);
+            Type[] parameters = getArgumentTypes(descriptor);
             mv.visitLdcInsn(parameters.length); // Push the number of parameters onto the stack
             mv.visitTypeInsn(ANEWARRAY, "java/lang/String"); // Creates an empty array of Class references
 
@@ -227,6 +246,63 @@ public class TargetByteManipulator extends AbstractByteManipulator {
 
             mv.visitMaxs(0, 0);
             mv.visitEnd();
+        }
+    }
+
+    private static class ReturnValueMethodHandler {
+
+        public static void generateMethodBytecode(String mixinName, String descriptor, boolean isTargetStatic, Class<?> mixinClass, MethodVisitor mv, int type) {
+
+            Type[] parameters = getArgumentTypes(descriptor);
+
+            mv.visitVarInsn(ASTORE - type, parameters.length);
+
+            mv.visitLdcInsn(mixinClass.getName()); // Pushes the class reference onto the stack
+            mv.visitLdcInsn(mixinName); // Pushes the method name onto the stack
+
+            mv.visitInsn(ACONST_NULL);
+
+            mv.visitLdcInsn(parameters.length); // Push the number of parameters onto the stack
+            mv.visitTypeInsn(ANEWARRAY, "java/lang/String"); // Creates an empty array of Class references
+
+            //load parameters
+            for(int i = 0; i < parameters.length; i++) {
+                mv.visitInsn(DUP);
+                mv.visitLdcInsn(i);
+                mv.visitLdcInsn(parameters[i].getClassName());
+                mv.visitInsn(AASTORE);
+            }
+
+            mv.visitLdcInsn(parameters.length); // Push the number of parameters onto the stack
+            mv.visitTypeInsn(ANEWARRAY, "java/lang/Object"); // Creates an empty array of Class references
+
+            mv.visitInsn(DUP);
+            mv.visitLdcInsn(0);
+            if(isTargetStatic) mv.visitInsn(ACONST_NULL);
+            else mv.visitVarInsn(ALOAD, 0);
+            mv.visitInsn(AASTORE);
+
+            mv.visitInsn(DUP);
+            mv.visitLdcInsn(1);
+            mv.visitVarInsn(ALOAD - type, parameters.length);
+            if(ClassReflection.getPrimitiveClassByName(parameters[1].getClassName()) != null) {
+                String className = Array.get(Array.newInstance(ClassReflection.getPrimitiveClassByName(parameters[1].getClassName()) ,1),0).getClass().getName().replace(".", "/");
+
+                mv.visitMethodInsn(INVOKESTATIC, className, "valueOf", "(" + parameters[1].getInternalName() + ")L" + className + ";", false);
+            }
+            mv.visitInsn(AASTORE);
+
+            //load parameters
+            for(int i = 2; i < parameters.length; i++) {
+                mv.visitInsn(DUP);
+                mv.visitLdcInsn(i);
+                mv.visitVarInsn(ALOAD, i);
+                mv.visitInsn(AASTORE);
+            }
+
+            mv.visitMethodInsn(INVOKESTATIC, "mixin/AbstractByteManipulator", "callMethod", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;[Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/Object;", false);
+            if(Type.getReturnType(descriptor).getSort() >= 9)  mv.visitTypeInsn(CHECKCAST, Type.getReturnType(descriptor).getInternalName());
+            else castToPrimitive(Type.getReturnType(descriptor), mv);
         }
     }
 }

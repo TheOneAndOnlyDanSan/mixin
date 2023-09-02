@@ -39,12 +39,18 @@ public class AbstractByteManipulator {
         setFieldValue(method, instance, value);
     }
 
+    static void castToPrimitive(Type returnType, MethodVisitor mv) {
+        String className = Array.get(Array.newInstance(ClassReflection.getPrimitiveClassByName(returnType.getClassName()) ,1),0).getClass().getName().replace(".", "/");
+
+        mv.visitTypeInsn(CHECKCAST, className);
+        mv.visitMethodInsn(INVOKEVIRTUAL, className, returnType.getClassName() + "Value", "()" + returnType.getInternalName(), false);
+    }
+
     static void addReturn(String descriptor, MethodVisitor mv) {
         Type returnType = Type.getReturnType(descriptor);
         if (returnType.getSort() == 0) {
             mv.visitInsn(RETURN);
         } else if(returnType.getSort() >= 1 && returnType.getSort() <= 8) { //check if the return type is primitive
-
             char charType = descriptor.split("\\)")[1].charAt(0);
             int returnPrimitive;
             String className = Array.get(Array.newInstance(ClassReflection.getPrimitiveClassByName(returnType.getClassName()) ,1),0).getClass().getName().replace(".", "/");
@@ -61,6 +67,7 @@ public class AbstractByteManipulator {
 
             mv.visitMethodInsn(INVOKEVIRTUAL, className, returnType.getClassName() + "Value", "()" + charType, false);
             mv.visitInsn(returnPrimitive);
+
         } else {
             mv.visitTypeInsn(CHECKCAST, returnType.getInternalName());
             mv.visitInsn(ARETURN);
