@@ -1,11 +1,10 @@
 package mixin;
 
+import mixin.annotations.Annotations;
 import mixin.annotations.Method.*;
-import mixin.annotations.field.AnnotationsField;
 import org.objectweb.asm.*;
 import org.objectweb.asm.Type;
 import reflection.ClassReflection;
-import reflection.ConstructorReflection;
 import reflection.FieldReflection;
 
 import java.lang.annotation.Annotation;
@@ -39,10 +38,10 @@ public class TargetByteManipulator extends AbstractByteManipulator {
                 throw new RuntimeException(mixinClass.getName() + "." + method.getName() + " must be static");
 
             int isMethod = 0;
-            if(method.isAnnotationPresent(OverwriteMethod.class))
-                isMethod += method.getAnnotation(OverwriteMethod.class).value().equals(name + descriptor) ? 1 : 0;
-            if(method.isAnnotationPresent(ReturnValueMethod.class))
-                isMethod += method.getAnnotation(ReturnValueMethod.class).value().equals(name + descriptor) ? 1 : 0;
+            if(method.isAnnotationPresent(Overwrite.class))
+                isMethod += method.getAnnotation(Overwrite.class).value().equals(name + descriptor) ? 1 : 0;
+            if(method.isAnnotationPresent(ChangeReturn.class))
+                isMethod += method.getAnnotation(ChangeReturn.class).value().equals(name + descriptor) ? 1 : 0;
             if(method.isAnnotationPresent(InjectHead.class)) {
                 String injectDescriptor = method.getAnnotation(InjectHead.class).value();
                 if(injectDescriptor.split("\\(")[0].equals("<init>")) throw new IllegalArgumentException("cannot InjectHead a constructor");
@@ -101,18 +100,10 @@ public class TargetByteManipulator extends AbstractByteManipulator {
         }
     }
 
-    private Method getAnnotationMethodSetter(List<Method> methods, String name, String descriptor) {
-        methods = methods.stream().filter(method -> method.isAnnotationPresent(AnnotationsMethod.class) && method.getAnnotation(AnnotationsMethod.class).value().equals(name + descriptor)).toList();
+    private Method getAnnotationSetter(List<Method> methods, String value) {
+        methods = methods.stream().filter(method -> method.isAnnotationPresent(Annotations.class) && method.getAnnotation(Annotations.class).value().equals(value)).toList();
 
-        if(methods.size() > 1) throw new RuntimeException(name + " connot have more than 1 annotation method");
-
-        return methods.size() == 1 ? methods.get(0) : null;
-    }
-
-    private Method getAnnotationFieldSetter(List<Method> methods, String name) {
-        methods = methods.stream().filter(method -> method.isAnnotationPresent(AnnotationsField.class) && method.getAnnotation(AnnotationsField.class).value().equals(name)).toList();
-
-        if(methods.size() > 1) throw new RuntimeException(name + " connot have more than 1 annotation method");
+        if(methods.size() > 1) throw new RuntimeException(value + " connot have more than 1 annotation method");
 
         return methods.size() == 1 ? methods.get(0) : null;
     }
@@ -133,7 +124,7 @@ public class TargetByteManipulator extends AbstractByteManipulator {
                     MethodVisitor methodVisitor = super.visitMethod(access, name, descriptor, signature, exceptions);
 
                     List<Method> methodList = filterMethods(Arrays.stream(mixinClass.getDeclaredMethods()).toList(), name, descriptor);
-                    Method annotationsMethod = getAnnotationMethodSetter(Arrays.stream(mixinClass.getDeclaredMethods()).toList(), name, descriptor);
+                    Method annotationsMethod = getAnnotationSetter(Arrays.stream(mixinClass.getDeclaredMethods()).toList(), name + descriptor);
 
 
                     Executable targetMethod;
@@ -153,23 +144,22 @@ public class TargetByteManipulator extends AbstractByteManipulator {
                         if(annotationsMethod == null) {
                             addAnnotationsToMethod(methodVisitor, null, targetMethod);
                         }
-
-
                         return new MethodVisitor(Opcodes.ASM9, methodVisitor) {
 
                             @Override
                             public void visitCode() {
                                 methodList.forEach(mixinMethod -> {
 
-                                    if(mixinMethod.isAnnotationPresent(OverwriteMethod.class)) {
+                                    if(mixinMethod.isAnnotationPresent(Overwrite.class)) {
                                         if(targetMethod.getClass() == Constructor.class) {
                                             ConstructorSetupHandler.generateMethodBytecode(methodVisitor);
                                         }
 
                                         OverwriteMethodHandler.generateMethodBytecode(mixinMethod.getName(), getDescriptor(mixinMethod), (access&ACC_STATIC) != 0, mixinClass, this);
                                     }
+
                                     if(mixinMethod.isAnnotationPresent(InjectHead.class)) {
-                                        InjectHeadMethodHandler.generateMethodBytecode(mixinMethod.getName(), getDescriptor(mixinMethod), (access&ACC_STATIC) != 0, mixinClass, this);
+                                        InjectHeadMethodHandler.generateMethodBytecode(mixinMethod.getName(), getDescriptor(mixinMethod), Modifier.isStatic(access), mixinClass, this);
                                        super.visitCode();
                                     }
                                 });
@@ -181,15 +171,15 @@ public class TargetByteManipulator extends AbstractByteManipulator {
 
                                     methodList.forEach(mixinMethod -> {
 
-                                        if(mixinMethod.isAnnotationPresent(ReturnValueMethod.class)) {
-                                            ReturnValueMethodHandler.generateMethodBytecode(mixinMethod.getName(), getDescriptor(mixinMethod), (access&ACC_STATIC) != 0, mixinClass, this, ARETURN - opcode);
+                                        if(mixinMethod.isAnnotationPresent(ChangeReturn.class)) {
+                                            ReturnValueMethodHandler.generateMethodBytecode(mixinMethod.getName(), getDescriptor(mixinMethod), Modifier.isStatic(access), mixinClass, this, ARETURN - opcode);
                                         }
                                     });
                                 } else if(opcode == RETURN) {
                                     methodList.forEach(mixinMethod -> {
 
                                         if(mixinMethod.isAnnotationPresent(InjectTail.class)) {
-                                            InjectHeadMethodHandler.generateMethodBytecode(mixinMethod.getName(), getDescriptor(mixinMethod), (access&ACC_STATIC) != 0, mixinClass, this);
+                                            InjectHeadMethodHandler.generateMethodBytecode(mixinMethod.getName(), getDescriptor(mixinMethod), Modifier.isStatic(access), mixinClass, this);
                                         }
                                     });
                                 }
@@ -205,7 +195,7 @@ public class TargetByteManipulator extends AbstractByteManipulator {
                     FieldVisitor fieldVisitor = super.visitField(access, name, descriptor, signature, value);
 
                     Field targetField = FieldReflection.getField(getClassByName(classReader.getClassName().replace("/", ".")), name);
-                    Method annotationsField = getAnnotationFieldSetter(Arrays.stream(mixinClass.getDeclaredMethods()).toList(), name);
+                    Method annotationsField = getAnnotationSetter(Arrays.stream(mixinClass.getDeclaredMethods()).toList(), name);
 
                     if(annotationsField != null) {
                         addAnnotationsToField(fieldVisitor, annotationsField, targetField);

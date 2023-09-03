@@ -1,17 +1,18 @@
 package mixin;
 
-import mixin.annotations.Method.ShadowMethod;
+import mixin.annotations.Shadow;
 import mixin.annotations.Mixin;
-import mixin.annotations.field.OverwriteField;
-import mixin.annotations.field.ShadowField;
 import org.objectweb.asm.*;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.List;
 
 import static org.objectweb.asm.Opcodes.*;
+import static reflection.ClassReflection.getClassByName;
+import static reflection.FieldReflection.getFields;
 
 public class MixinByteManipulator extends AbstractByteManipulator {
 
@@ -26,25 +27,41 @@ public class MixinByteManipulator extends AbstractByteManipulator {
         targetClass = mixinClass.getAnnotation(Mixin.class).value();
     }
 
-    private static Method filterMethods(List<Method> methods, String name, String descriptor) {
+    private List<Method> filterMethods(List<Method> methods, String name, String descriptor) {
         List<Method> methodList = methods.stream().filter(method -> {
+            if(!Modifier.isStatic(method.getModifiers()))
+                throw new RuntimeException(mixinClass.getName() + "." + method.getName() + " must be static");
+
             int isMethod = 0;
-            if(method.isAnnotationPresent(ShadowMethod.class))
-                isMethod += method.getName().equals(name) && Type.getMethodDescriptor(method).equals(descriptor) ? 1 : 0;
-            if(method.isAnnotationPresent(ShadowField.class))
-                isMethod += method.getName().equals(name) && Type.getMethodDescriptor(method).equals(descriptor) ? 1 : 0;
-            if(method.isAnnotationPresent(OverwriteField.class))
+            if(method.isAnnotationPresent(Shadow.class))
                 isMethod += method.getName().equals(name) && Type.getMethodDescriptor(method).equals(descriptor) ? 1 : 0;
 
             return isMethod != 0;
         }).toList();
 
-
-        if(methodList.size() > 1) throw new RuntimeException(name + " cannot be mixined more than once");
-        return methodList.size() == 1 ? methodList.get(0) : null;
+        return methodList;
     }
 
-    private static String removeFirstArgFromDescriptor(Method method) {
+    private List<Field> filterFields(String name) {
+        List<Field> fieldList = Arrays.stream(getFields(mixinClass, false)).filter(field -> {
+
+            int isField = 0;
+            if(field.isAnnotationPresent(Shadow.class))
+                isField += field.getName().equals(name) ? 1 : 0;
+
+            if(isField != 0) {
+                if(!Modifier.isStatic(field.getModifiers()))
+                    throw new RuntimeException(mixinClass.getName() + "." + field.getName() + " must be static");
+                return true;
+            }
+
+            return false;
+        }).toList();
+
+        return fieldList;
+    }
+
+    private String removeFirstArgFromDescriptor(Method method) {
 
         String shadowDescriptor = Type.getMethodDescriptor(method);
 
@@ -59,27 +76,38 @@ public class MixinByteManipulator extends AbstractByteManipulator {
             classReader.accept(new ClassVisitor(ASM9, classWriter) {
                 @Override
                 public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
-                    MethodVisitor methodVisitor;
+                    MethodVisitor methodVisitor = super.visitMethod(access, name, descriptor, signature, exceptions);
 
-                    Method mixinMethod = filterMethods(Arrays.stream(mixinClass.getDeclaredMethods()).toList(), name, descriptor);
+                    List<Method> methodList = filterMethods(Arrays.stream(mixinClass.getDeclaredMethods()).toList(), name, descriptor);
 
-                    if(mixinMethod == null) {
-                        methodVisitor = super.visitMethod(access, name, descriptor, signature, exceptions);
-                    } else {
-                        methodVisitor = classWriter.visitMethod(access, name, descriptor, signature, exceptions);
+                    return new MethodVisitor(Opcodes.ASM9, methodVisitor) {
 
-                        if(!Modifier.isStatic(mixinMethod.getModifiers()))
-                            throw new RuntimeException(mixinClass.getName() + "." + mixinMethod.getName() + " must be static");
+                        @Override
+                        public void visitCode() {
 
-                        if(mixinMethod.isAnnotationPresent(ShadowMethod.class))
-                            ShadowMethodHandler.generateMethodBytecode(mixinMethod.getAnnotation(ShadowMethod.class).value().split("\\(")[0], removeFirstArgFromDescriptor(mixinMethod), targetClass, (access & ACC_STATIC) != 0, methodVisitor);
-                        if(mixinMethod.isAnnotationPresent(ShadowField.class))
-                            ShadowFieldHandler.generateMethodBytecode(mixinMethod.getAnnotation(ShadowField.class).value(), removeFirstArgFromDescriptor(mixinMethod), targetClass, (access & ACC_STATIC) != 0, methodVisitor);
-                        if(mixinMethod.isAnnotationPresent(OverwriteField.class))
-                            OverwriteFieldHandler.generateMethodBytecode(mixinMethod.getAnnotation(OverwriteField.class).value(), targetClass, (access & ACC_STATIC) != 0, methodVisitor);
-                    }
+                            methodList.forEach(mixinMethod -> {
+                                if(mixinMethod.isAnnotationPresent(Shadow.class))
+                                    ShadowMethodHandler.generateMethodBytecode(mixinMethod.getName(), removeFirstArgFromDescriptor(mixinMethod), targetClass, Modifier.isStatic(access), this);
+                            });
+                        }
 
-                    return methodVisitor;
+                        @Override
+                        public void visitFieldInsn(int opcode, String owner, String name, String descriptor) {
+                            List<Field> fieldList = filterFields(name);
+                            fieldList.forEach(mixinField -> {
+                                if(opcode % 2 == 0) { //getField
+                                    if(mixinField.isAnnotationPresent(Shadow.class))
+                                        ShadowFieldHandler.generateMethodBytecode(name, targetClass, descriptor, opcode <= GETFIELD, this);
+                                } else { //set
+                                    if(mixinField.isAnnotationPresent(Shadow.class))
+                                        OverwriteFieldHandler.generateMethodBytecode(name, targetClass, opcode <= GETFIELD, this);
+                                }
+                            });
+                            if(fieldList.size() == 0) {
+                                super.visitFieldInsn(opcode, owner, name, descriptor);
+                            }
+                        }
+                    };
                 }
 
             }, ClassReader.EXPAND_FRAMES);
@@ -94,10 +122,10 @@ public class MixinByteManipulator extends AbstractByteManipulator {
 
     private static class ShadowMethodHandler {
 
-        public static void generateMethodBytecode(String name, String descriptor, Class<?> targetClass, boolean isTargetStatic, MethodVisitor mv) {
+        public static void generateMethodBytecode(String fieldName, String descriptor, Class<?> targetClass, boolean isTargetStatic, MethodVisitor mv) {
 
             mv.visitLdcInsn(targetClass.getName()); // Pushes the class reference onto the stack
-            mv.visitLdcInsn(name); // Pushes the method name onto the stack
+            mv.visitLdcInsn(fieldName); // Pushes the method name onto the stack
 
             if(!isTargetStatic) mv.visitInsn(ACONST_NULL);
             else mv.visitVarInsn(ALOAD, 0);
@@ -131,9 +159,8 @@ public class MixinByteManipulator extends AbstractByteManipulator {
 
     private static class ShadowFieldHandler {
 
-        public static void generateMethodBytecode(String name, String descriptor, Class<?> targetClass, boolean isTargetStatic, MethodVisitor mv) {
-
-            mv.visitLdcInsn(targetClass.getName()); // Pushes the class reference onto the stack
+        public static void generateMethodBytecode(String name, Class<?> targetClas, String descriptor, boolean isTargetStatic, MethodVisitor mv) {
+            mv.visitLdcInsn(targetClas.getName()); // Pushes the class reference onto the stack
             mv.visitLdcInsn(name); // Pushes the method name onto the stack
 
             if(!isTargetStatic) mv.visitInsn(ACONST_NULL);
@@ -141,10 +168,11 @@ public class MixinByteManipulator extends AbstractByteManipulator {
 
             mv.visitMethodInsn(INVOKESTATIC, "mixin/AbstractByteManipulator", "getField", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;)Ljava/lang/Object;", false);
 
-            addReturn(descriptor, mv);
-
-            mv.visitMaxs(0, 0);
-            mv.visitEnd();
+            //if(descriptor.length() == 1) {
+            //    castToPrimitive(Type.getType(descriptor), mv);
+            //} else {
+            //    mv.visitTypeInsn(CHECKCAST, descriptor);
+            //}
         }
     }
 
@@ -158,14 +186,7 @@ public class MixinByteManipulator extends AbstractByteManipulator {
             if(!isTargetStatic) mv.visitInsn(ACONST_NULL);
             else mv.visitVarInsn(ALOAD, 0);
 
-            mv.visitVarInsn(ALOAD, 1);
-
-            mv.visitMethodInsn(INVOKESTATIC, "mixin/AbstractByteManipulator", "setField", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;)V", false);
-
-            mv.visitInsn(RETURN);
-
-            mv.visitMaxs(0, 0);
-            mv.visitEnd();
+            mv.visitMethodInsn(INVOKESTATIC, "mixin/AbstractByteManipulator", "setField", "(Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;)V", false);
         }
     }
 }

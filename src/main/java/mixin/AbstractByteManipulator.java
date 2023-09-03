@@ -1,8 +1,5 @@
 package mixin;
 
-import mixin.annotations.Method.ShadowMethod;
-import mixin.annotations.field.OverwriteField;
-import mixin.annotations.field.ShadowField;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
 import reflection.ClassReflection;
@@ -34,7 +31,7 @@ public class AbstractByteManipulator {
         return getFieldValue(method, instance);
     }
 
-    public static void setField(String className, String fieldName, Object instance, Object value) {
+    public static void setField(Object value, String className, String fieldName, Object instance) {
         Field method = FieldReflection.getField(getClassByName(className), fieldName);
         setFieldValue(method, instance, value);
     }
