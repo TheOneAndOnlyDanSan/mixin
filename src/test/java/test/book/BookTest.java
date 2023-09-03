@@ -25,8 +25,8 @@ public class BookTest {
     public static void getWithMixin() {
         Book book = new Book("x", 1999, 100.1);
 
-        System.out.println(new Book("x", 1999, 100.1).equals(new Book("x", 1999, 100.1)));
+        System.out.println(book.equals(book));
 
-        assertEquals(book.get(), BookMixin.book);
+        assertSame(book.get(), BookMixin.book);
     }
 }

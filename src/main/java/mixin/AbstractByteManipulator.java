@@ -39,6 +39,33 @@ public class AbstractByteManipulator {
         setFieldValue(method, instance, value);
     }
 
+    static int getTypeOffset(Type type) {
+
+        if(type.getSort() > 8) return 0;
+
+        return switch (type.getInternalName().charAt(0)) {
+            case 'Z', 'B', 'S', 'C', 'I' ->  4;
+            case 'J'  -> 3;
+            case 'F'  -> 2;
+            case 'D' -> 1;
+            default -> throw new RuntimeException();
+        };
+    }
+
+    static void loadArgs(Type[] parameters, int startIndex, MethodVisitor mv) {
+        for(int i = startIndex; i < parameters.length; i++) {
+            mv.visitInsn(DUP);
+            mv.visitLdcInsn(i);
+            mv.visitVarInsn(ALOAD - getTypeOffset(parameters[i]) , i);
+            if(ClassReflection.getPrimitiveClassByName(parameters[i].getClassName()) != null) {
+                String className = Array.get(Array.newInstance(ClassReflection.getPrimitiveClassByName(parameters[i].getClassName()) ,1),0).getClass().getName().replace(".", "/");
+
+                mv.visitMethodInsn(INVOKESTATIC, className, "valueOf", "(" + parameters[i].getInternalName() + ")L" + className + ";", false);
+            }
+            mv.visitInsn(AASTORE);
+        }
+    }
+
     static void castToPrimitive(Type returnType, MethodVisitor mv) {
         String className = Array.get(Array.newInstance(ClassReflection.getPrimitiveClassByName(returnType.getClassName()) ,1),0).getClass().getName().replace(".", "/");
 

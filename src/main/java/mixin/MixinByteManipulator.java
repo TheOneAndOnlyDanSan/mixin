@@ -118,12 +118,7 @@ public class MixinByteManipulator extends AbstractByteManipulator {
             mv.visitTypeInsn(ANEWARRAY, "java/lang/Object"); // Creates an empty array of Class references
 
             //load parameters
-            for(int i = 0;i < parameters.length;i++) {
-                mv.visitInsn(DUP);
-                mv.visitLdcInsn(i);
-                mv.visitVarInsn(ALOAD, i +1);
-                mv.visitInsn(AASTORE);
-            }
+            loadArgs(parameters, 0, mv);
 
             mv.visitMethodInsn(INVOKESTATIC, "mixin/AbstractByteManipulator", "callMethod", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;[Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/Object;", false);
 
