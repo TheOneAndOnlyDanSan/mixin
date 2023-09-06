@@ -72,7 +72,7 @@ public class TargetByteManipulator extends AbstractByteManipulator {
         }
 
         for(Annotation annotation : annotations) {
-            AnnotationVisitor annotationVisitor = methodVisitor.visitAnnotation("L" + getClassName(annotation.annotationType().getName()) + ";", true);
+            AnnotationVisitor annotationVisitor = methodVisitor.visitAnnotation("L" + annotation.annotationType().getName().replace(".", "/") + ";", true);
 
             for(Method m : getMethods(annotation.annotationType(), false)) {
                 annotationVisitor.visit(m.getName(), useMethod(m, annotation));
@@ -83,22 +83,14 @@ public class TargetByteManipulator extends AbstractByteManipulator {
     }
 
     private void addAnnotationsToField(FieldVisitor fieldVisitor, Method mixinMethod, Field targetMethod) {
-        Annotation[] annotations;
-
-        if(mixinMethod != null) {
-            annotations = (Annotation[]) useMethod(mixinMethod, null, new Object[mixinMethod.getParameterCount()]);
-        } else {
-            annotations = targetMethod.getDeclaredAnnotations();
-        }
+        Annotation[] annotations = (Annotation[]) useMethod(mixinMethod, null, new Object[mixinMethod.getParameterCount()]);
 
         for(Annotation annotation : annotations) {
-            AnnotationVisitor annotationVisitor = fieldVisitor.visitAnnotation("L" + getClassName(annotation.annotationType().getName()) + ";", true);
+            AnnotationVisitor annotationVisitor = fieldVisitor.visitAnnotation("L" + annotation.annotationType().getName().replace(".", "/") + ";", true);
 
             for(Method m : getMethods(annotation.annotationType(), false)) {
                 annotationVisitor.visit(m.getName(), useMethod(m, annotation));
             }
-
-            annotationVisitor.visitEnd();
         }
     }
 
@@ -125,6 +117,7 @@ public class TargetByteManipulator extends AbstractByteManipulator {
             ClassWriter classWriter = new ClassWriter(ClassWriter.COMPUTE_FRAMES|ClassWriter.COMPUTE_MAXS);
 
             classReader.accept(new ClassVisitor(ASM9, classWriter) {
+
                 @Override
                 public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
                     MethodVisitor methodVisitor = super.visitMethod(access, name, descriptor, signature, exceptions);
@@ -142,14 +135,19 @@ public class TargetByteManipulator extends AbstractByteManipulator {
                         targetMethod = getMethod(targetClass, name, Arrays.stream(getArgumentTypes(descriptor)).map(type -> getClassByName(getClassName(type.getInternalName()))).toArray(Class[]::new));
                     }
 
-                    if(methodList.size() == 0) {
-                        if(annotationsMethod != null) {
-                            addAnnotationsToMethod(methodVisitor, annotationsMethod, targetMethod);
-                        }
+                    if(annotationsMethod != null) {
+                        addAnnotationsToMethod(methodVisitor, annotationsMethod, targetMethod);
+                    }
 
+                    if(methodList.size() == 0) {
                         return methodVisitor;
                     } else {
                         return new MethodVisitor(Opcodes.ASM9, methodVisitor) {
+
+                            @Override
+                            public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
+                                return null;
+                            }
 
                             @Override
                             public void visitCode() {
@@ -217,7 +215,13 @@ public class TargetByteManipulator extends AbstractByteManipulator {
                         addAnnotationsToField(fieldVisitor, annotationsField, targetField);
                     }
 
-                    return fieldVisitor;
+                    return new FieldVisitor(Opcodes.ASM7, fieldVisitor) {
+
+                        @Override
+                        public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
+                            return null;
+                        }
+                    };
                 }
 
             }, ClassReader.EXPAND_FRAMES);
