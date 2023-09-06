@@ -15,6 +15,8 @@ public class BookTest {
         fieldAnnotationsWithout();
         getWithoutMixin();
         methodAnnotationsWithout();
+        shadowPrivateFieldWithout();
+        shadowPrivateStaticFieldWithout();
 
         ClassInjector.addClasses(BookMixin.class);
 
@@ -22,6 +24,35 @@ public class BookTest {
         getWithMixin();
         methodAnnotationsWith();
         fieldSameAnnotationsWith();
+        shadowPrivateFieldWith();
+        fieldWithoutAnnotationsWith();
+        shadowPrivateStaticFieldWith();
+    }
+
+
+
+    public void shadowPrivateStaticFieldWithout() {
+        assertEquals(BookMixin.getStaticTestField(null), 0);
+    }
+
+    public void shadowPrivateStaticFieldWith() {
+        assertEquals(BookMixin.getStaticTestField(null), 1.1);
+        BookMixin.setStaticTestField(null, 1.2);
+        assertEquals(BookMixin.getStaticTestField(null), 1.2);
+    }
+
+    public void shadowPrivateFieldWithout() {
+        Book book = new Book("x", 1999, 100.1);
+
+        assertEquals(BookMixin.getPublishedYear(book), 0);
+    }
+
+    public void shadowPrivateFieldWith() {
+        Book book = new Book("x", 1999, 100.1);
+
+        assertEquals(BookMixin.getPublishedYear(book), 1999);
+        BookMixin.setPublishedYear(book, 2000);
+        assertEquals(BookMixin.getPublishedYear(book), 2000);
     }
 
     public void fieldSameAnnotationsWith() {

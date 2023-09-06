@@ -3,8 +3,10 @@ package mixin.bytemanipulators;
 import mixin.annotations.Shadow;
 import mixin.annotations.Mixin;
 import org.objectweb.asm.*;
+import reflection.ClassReflection;
 import reflection.FieldReflection;
 
+import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -105,10 +107,10 @@ public class MixinByteManipulator extends AbstractByteManipulator {
                             fieldList.forEach(mixinField -> {
                                 if(opcode % 2 == 0) { //getField
                                     if(mixinField.isAnnotationPresent(Shadow.class))
-                                        ShadowSetFieldHandler.generateMethodBytecode(name, targetClass, descriptor, opcode <= GETFIELD, this, getCurrentLocals());
+                                        ShadowGetFieldHandler.generateMethodBytecode(name, targetClass, descriptor, Modifier.isStatic(FieldReflection.getField(targetClass, name).getModifiers()), this, getCurrentLocals());
                                 } else { //set
                                     if(mixinField.isAnnotationPresent(Shadow.class))
-                                        ShadowGetFieldHandler.generateMethodBytecode(name, targetClass, opcode <= GETFIELD, this, getCurrentLocals());
+                                        ShadowSetFieldHandler.generateMethodBytecode(name, targetClass, descriptor, Modifier.isStatic(FieldReflection.getField(targetClass, name).getModifiers()), this, getCurrentLocals());
                                 }
                             });
                             if(fieldList.size() == 0) {
@@ -188,7 +190,7 @@ public class MixinByteManipulator extends AbstractByteManipulator {
         }
     }
 
-    private static class ShadowSetFieldHandler {
+    private static class ShadowGetFieldHandler {
 
         public static void generateMethodBytecode(String name, Class<?> targetClass, String descriptor, boolean isTargetStatic, MethodVisitor mv, int offset) {
 
@@ -257,11 +259,11 @@ public class MixinByteManipulator extends AbstractByteManipulator {
         }
     }
 
-    private static class ShadowGetFieldHandler {
+    private static class ShadowSetFieldHandler {
 
-        public static void generateMethodBytecode(String name, Class<?> targetClass, boolean isTargetStatic, MethodVisitor mv, int offset) {
+        public static void generateMethodBytecode(String name, Class<?> targetClass, String descriptor, boolean isTargetStatic, MethodVisitor mv, int offset) {
 
-            mv.visitVarInsn(ASTORE, offset +1);
+            mv.visitVarInsn(ASTORE - getTypeOffset(Type.getType(descriptor)), offset +1);
 
             mv.visitInsn(ICONST_5);
             mv.visitTypeInsn(ANEWARRAY, "java/lang/Object");
@@ -307,7 +309,12 @@ public class MixinByteManipulator extends AbstractByteManipulator {
 
             mv.visitInsn(DUP);
             mv.visitLdcInsn(0);
-            mv.visitVarInsn(ALOAD, offset +1);
+            mv.visitVarInsn(ALOAD - getTypeOffset(Type.getType(descriptor)), offset +1);
+            if(getTypeOffset(Type.getType(descriptor)) != 0) {
+                String className = Array.get(Array.newInstance(ClassReflection.getPrimitiveClassByName(Type.getType(descriptor).getClassName()) ,1),0).getClass().getName().replace(".", "/");
+
+                mv.visitMethodInsn(INVOKESTATIC, className, "valueOf", "(" + Type.getType(descriptor).getInternalName() + ")L" + className + ";", false);
+            }
             mv.visitInsn(AASTORE);
 
             for(int i = 0; i < args.length; i++) {

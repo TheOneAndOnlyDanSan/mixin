@@ -4,9 +4,13 @@ import jdk.jfr.Label;
 
 public class Book {
 
+    private static double staticTestField = 1.1;
+
     @Label("LabelNameAnnotation")
     public final String name;
+
     private final int publishedYear;
+
     @Label("LabelCostAnnotation")
     private final double cost;
 

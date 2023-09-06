@@ -4,6 +4,7 @@ import jdk.jfr.Label;
 import mixin.Util;
 import mixin.annotations.Annotations;
 import mixin.annotations.Mixin;
+import mixin.annotations.Shadow;
 import mixin.annotations.method.Overwrite;
 
 import java.lang.annotation.Annotation;
@@ -13,6 +14,25 @@ import java.util.Map;
 @Mixin(Book.class)
 public class BookMixin {
     public static Book book = new Book("bookMixin", 2000, 101.1);
+
+    @Shadow static int publishedYear;
+    @Shadow static double staticTestField;
+
+    public static double getStaticTestField(Book instance) {
+        return staticTestField;
+    }
+
+    public static void setStaticTestField(Book instance, double value) {
+        staticTestField = value;
+    }
+
+    public static void setPublishedYear(Book instance, int value) {
+        publishedYear = value;
+    }
+
+    public static int getPublishedYear(Book instance) {
+        return publishedYear;
+    }
 
     @Annotations("name")
     private static Annotation[] getNameAnnotations() {
