@@ -1,4 +1,4 @@
-package mixin.annotations.Method;
+package mixin.annotations.method;
 
 import java.lang.annotation.*;
 

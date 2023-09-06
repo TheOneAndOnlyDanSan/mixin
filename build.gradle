@@ -20,7 +20,7 @@ jar {
     archivesBaseName = "mixin"
 
     manifest {
-        attributes 'Main-Class': 'test.Tester'
+        attributes 'Main-Class': 'main.Main'
         attributes 'Agent-Class': 'mixin.Agent'
         attributes 'Premain-Class': 'mixin.Agent'
         attributes 'Can-Retransform-Classes': 'true'

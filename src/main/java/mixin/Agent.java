@@ -8,11 +8,19 @@ import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.List;
 
-class Agent {
+public class Agent {
 
     static Instrumentation agent;
     static Hashtable<Class<?>, Class<?>> mixinClasses = new Hashtable<>();
     static List<Class<?>> mixined = new ArrayList<>();
+
+    public static Hashtable<Class<?>, Class<?>> getMixinClasses() {
+        return mixinClasses;
+    }
+
+    public static Instrumentation getAgent() {
+        return agent;
+    }
 
     static {
         Vars.init();

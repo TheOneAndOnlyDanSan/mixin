@@ -1,12 +1,14 @@
-package mixin;
+package mixin.bytemanipulators;
 
+import mixin.Agent;
 import mixin.annotations.Annotations;
-import mixin.annotations.Method.*;
+import mixin.annotations.method.*;
 import org.objectweb.asm.*;
 import org.objectweb.asm.Type;
 import reflection.ClassReflection;
 import reflection.FieldReflection;
 
+import javax.swing.plaf.SeparatorUI;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.*;
 import java.util.Arrays;
@@ -25,11 +27,11 @@ public class TargetByteManipulator extends AbstractByteManipulator {
     final Class<?> mixinClass;
     final byte[] originalByteCode;
 
-    TargetByteManipulator(Class<?> targetClass, byte[] originalByteCode) {
+    public TargetByteManipulator(Class<?> targetClass, byte[] originalByteCode) {
         this.targetClass = targetClass;
         this.originalByteCode = originalByteCode;
 
-        mixinClass = Agent.mixinClasses.get(targetClass);
+        mixinClass = Agent.getMixinClasses().get(targetClass);
     }
 
     private List<Method> filterMethods(List<Method> methods, String name, String descriptor) {
@@ -70,7 +72,7 @@ public class TargetByteManipulator extends AbstractByteManipulator {
         }
 
         for(Annotation annotation : annotations) {
-            AnnotationVisitor annotationVisitor = methodVisitor.visitAnnotation("L" + annotation.annotationType().getName().replace(".", "/") + ";", true);
+            AnnotationVisitor annotationVisitor = methodVisitor.visitAnnotation("L" + getClassName(annotation.annotationType().getName()) + ";", true);
 
             for(Method m : getMethods(annotation.annotationType(), false)) {
                 annotationVisitor.visit(m.getName(), useMethod(m, annotation));
@@ -90,7 +92,7 @@ public class TargetByteManipulator extends AbstractByteManipulator {
         }
 
         for(Annotation annotation : annotations) {
-            AnnotationVisitor annotationVisitor = fieldVisitor.visitAnnotation("L" + annotation.annotationType().getName().replace(".", "/") + ";", true);
+            AnnotationVisitor annotationVisitor = fieldVisitor.visitAnnotation("L" + getClassName(annotation.annotationType().getName()) + ";", true);
 
             for(Method m : getMethods(annotation.annotationType(), false)) {
                 annotationVisitor.visit(m.getName(), useMethod(m, annotation));
@@ -113,6 +115,10 @@ public class TargetByteManipulator extends AbstractByteManipulator {
         else return Type.getConstructorDescriptor((Constructor<?>) e);
     }
 
+    private static final Label start = new Label();
+    private static final Label end = new Label();
+    private static final Label handler = new Label();
+
     public byte[] getMixinedClass() {
         try {
             ClassReader classReader = new ClassReader(originalByteCode);
@@ -123,15 +129,17 @@ public class TargetByteManipulator extends AbstractByteManipulator {
                 public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
                     MethodVisitor methodVisitor = super.visitMethod(access, name, descriptor, signature, exceptions);
 
+                    if(name.equals("<clinit>")) return methodVisitor;
+
                     List<Method> methodList = filterMethods(Arrays.stream(mixinClass.getDeclaredMethods()).toList(), name, descriptor);
                     Method annotationsMethod = getAnnotationSetter(Arrays.stream(mixinClass.getDeclaredMethods()).toList(), name + descriptor);
 
 
                     Executable targetMethod;
                     if(name.equals("<init>")) {
-                        targetMethod = getConstructor(getClassByName(classReader.getClassName().replace("/", ".")), Arrays.stream(getArgumentTypes(descriptor)).map(type -> getClassByName(type.getClassName())).toArray(Class[]::new));
+                        targetMethod = getConstructor(targetClass, Arrays.stream(getArgumentTypes(descriptor)).map(type -> getClassByName(getClassName(type.getInternalName()))).toArray(Class[]::new));
                     } else {
-                        targetMethod = getMethod(getClassByName(classReader.getClassName().replace("/", ".")), name, Arrays.stream(getArgumentTypes(descriptor)).map(type -> getClassByName(type.getClassName())).toArray(Class[]::new));
+                        targetMethod = getMethod(targetClass, name, Arrays.stream(getArgumentTypes(descriptor)).map(type -> getClassByName(getClassName(type.getInternalName()))).toArray(Class[]::new));
                     }
 
                     if(methodList.size() == 0) {
@@ -141,13 +149,11 @@ public class TargetByteManipulator extends AbstractByteManipulator {
 
                         return methodVisitor;
                     } else {
-                        if(annotationsMethod == null) {
-                            addAnnotationsToMethod(methodVisitor, null, targetMethod);
-                        }
                         return new MethodVisitor(Opcodes.ASM9, methodVisitor) {
 
                             @Override
                             public void visitCode() {
+
                                 methodList.forEach(mixinMethod -> {
 
                                     if(mixinMethod.isAnnotationPresent(Overwrite.class)) {
@@ -155,12 +161,16 @@ public class TargetByteManipulator extends AbstractByteManipulator {
                                             ConstructorSetupHandler.generateMethodBytecode(methodVisitor);
                                         }
 
+                                        if(annotationsMethod == null) {
+                                            addAnnotationsToMethod(methodVisitor, null, targetMethod);
+                                        }
+
                                         OverwriteMethodHandler.generateMethodBytecode(mixinMethod.getName(), getDescriptor(mixinMethod), (access&ACC_STATIC) != 0, mixinClass, this);
                                     }
 
                                     if(mixinMethod.isAnnotationPresent(InjectHead.class)) {
                                         InjectHeadMethodHandler.generateMethodBytecode(mixinMethod.getName(), getDescriptor(mixinMethod), Modifier.isStatic(access), mixinClass, this);
-                                       super.visitCode();
+                                        super.visitCode();
                                     }
                                 });
                             }
@@ -184,7 +194,13 @@ public class TargetByteManipulator extends AbstractByteManipulator {
                                     });
                                 }
 
-                                super.visitInsn(opcode);
+                                if(opcode > 500) {
+                                    super.visitInsn(opcode -500);
+                                } else if(methodList.stream().noneMatch(mixinMethod -> mixinMethod.isAnnotationPresent(ChangeReturn.class) || mixinMethod.isAnnotationPresent(InjectTail.class))) {
+                                    super.visitInsn(opcode);
+                                } else if(opcode > RETURN || opcode < IRETURN) {
+                                    super.visitInsn(opcode);
+                                }
                             }
                         };
                     }
@@ -226,98 +242,35 @@ public class TargetByteManipulator extends AbstractByteManipulator {
 
         public static void generateMethodBytecode(String mixinName, String descriptor, boolean isTargetStatic, Class<?> mixinClass, MethodVisitor mv) {
 
-            mv.visitLdcInsn(mixinClass.getName()); // Pushes the class reference onto the stack
-            mv.visitLdcInsn(mixinName); // Pushes the method name onto the stack
-
-            mv.visitInsn(ACONST_NULL);
-
             Type[] parameters = getArgumentTypes(descriptor);
-            mv.visitLdcInsn(parameters.length); // Push the number of parameters onto the stack
-            mv.visitTypeInsn(ANEWARRAY, "java/lang/String"); // Creates an empty array of Class references
+            int offset = parameters.length;
 
-            //load parameters
-            for(int i = 0; i < parameters.length; i++) {
-                mv.visitInsn(DUP);
-                mv.visitLdcInsn(i);
-                mv.visitLdcInsn(parameters[i].getClassName());
-                mv.visitInsn(AASTORE);
-            }
-
-            mv.visitLdcInsn(parameters.length); // Push the number of parameters onto the stack
-            mv.visitTypeInsn(ANEWARRAY, "java/lang/Object"); // Creates an empty array of Class references
+            mv.visitInsn(ICONST_5);
+            mv.visitTypeInsn(ANEWARRAY, "java/lang/Object");
+            mv.visitVarInsn(ASTORE, offset);
+            mv.visitVarInsn(ALOAD, offset);
 
             mv.visitInsn(DUP);
-            mv.visitLdcInsn(0);
-            if(isTargetStatic) mv.visitInsn(ACONST_NULL); else mv.visitVarInsn(ALOAD, 0);
-            mv.visitInsn(AASTORE);
-
-            //load parameters
-            loadArgs(parameters, 1, mv);
-
-            mv.visitMethodInsn(INVOKESTATIC, "mixin/AbstractByteManipulator", "callMethod", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;[Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/Object;", false);
-
-            addReturn(descriptor, mv);
-
-            mv.visitMaxs(0, 0);
-            mv.visitEnd();
-        }
-    }
-
-    private static class InjectHeadMethodHandler {
-
-        public static void generateMethodBytecode(String mixinName, String descriptor, boolean isTargetStatic, Class<?> mixinClass, MethodVisitor mv) {
-
+            mv.visitInsn(ICONST_0);
             mv.visitLdcInsn(mixinClass.getName()); // Pushes the class reference onto the stack
-            mv.visitLdcInsn(mixinName); // Pushes the method name onto the stack
-
-            mv.visitInsn(ACONST_NULL);
-
-            Type[] parameters = getArgumentTypes(descriptor);
-            mv.visitLdcInsn(parameters.length); // Push the number of parameters onto the stack
-            mv.visitTypeInsn(ANEWARRAY, "java/lang/String"); // Creates an empty array of Class references
-
-            //load parameters
-            for(int i = 0; i < parameters.length; i++) {
-                mv.visitInsn(DUP);
-                mv.visitLdcInsn(i);
-                mv.visitLdcInsn(parameters[i].getClassName());
-                mv.visitInsn(AASTORE);
-            }
-
-            mv.visitLdcInsn(parameters.length); // Push the number of parameters onto the stack
-            mv.visitTypeInsn(ANEWARRAY, "java/lang/Object"); // Creates an empty array of Class references
+            mv.visitInsn(AASTORE);
 
             mv.visitInsn(DUP);
-            mv.visitLdcInsn(0);
-            if(isTargetStatic) mv.visitInsn(ACONST_NULL); else mv.visitVarInsn(ALOAD, 0);
+            mv.visitInsn(ICONST_1);
+            mv.visitLdcInsn(mixinName); // Pushes the method name onto the stack
             mv.visitInsn(AASTORE);
 
-            //load parameters
-            loadArgs(parameters, 1, mv);
-
-            mv.visitMethodInsn(INVOKESTATIC, "mixin/AbstractByteManipulator", "callMethod", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;[Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/Object;", false);
-
-            mv.visitInsn(POP);
-        }
-    }
-
-    private static class ReturnValueMethodHandler {
-
-        public static void generateMethodBytecode(String mixinName, String descriptor, boolean isTargetStatic, Class<?> mixinClass, MethodVisitor mv, int type) {
-
-            Type[] parameters = getArgumentTypes(descriptor);
-
-            mv.visitVarInsn(ASTORE - type, parameters.length);
-
-            mv.visitLdcInsn(mixinClass.getName()); // Pushes the class reference onto the stack
-            mv.visitLdcInsn(mixinName); // Pushes the method name onto the stack
-
+            mv.visitInsn(DUP);
+            mv.visitInsn(ICONST_2);
             mv.visitInsn(ACONST_NULL);
+            mv.visitInsn(AASTORE);
 
+            mv.visitInsn(DUP);
+            mv.visitInsn(ICONST_3);
             mv.visitLdcInsn(parameters.length); // Push the number of parameters onto the stack
             mv.visitTypeInsn(ANEWARRAY, "java/lang/String"); // Creates an empty array of Class references
 
-            //load parameters
+
             for(int i = 0; i < parameters.length; i++) {
                 mv.visitInsn(DUP);
                 mv.visitLdcInsn(i);
@@ -325,6 +278,10 @@ public class TargetByteManipulator extends AbstractByteManipulator {
                 mv.visitInsn(AASTORE);
             }
 
+            mv.visitInsn(AASTORE);
+
+            mv.visitInsn(DUP);
+            mv.visitInsn(ICONST_4);
             mv.visitLdcInsn(parameters.length); // Push the number of parameters onto the stack
             mv.visitTypeInsn(ANEWARRAY, "java/lang/Object"); // Creates an empty array of Class references
 
@@ -334,21 +291,166 @@ public class TargetByteManipulator extends AbstractByteManipulator {
             else mv.visitVarInsn(ALOAD, 0);
             mv.visitInsn(AASTORE);
 
+            loadArgs(parameters, isTargetStatic ? 1 : 0, 1, mv);
+            mv.visitInsn(AASTORE);
+
+            mv.visitVarInsn(ASTORE, offset);
+
+            setUpCallMethod(mv, offset);
+
+            addReturn(descriptor, mv);
+        }
+    }
+
+    private static class InjectHeadMethodHandler {
+
+        public static void generateMethodBytecode(String mixinName, String descriptor, boolean isTargetStatic, Class<?> mixinClass, MethodVisitor mv) {
+
+            Type[] parameters = getArgumentTypes(descriptor);
+            int offset = parameters.length;
+
+            mv.visitInsn(ICONST_5);
+            mv.visitTypeInsn(ANEWARRAY, "java/lang/Object");
+            mv.visitVarInsn(ASTORE, offset);
+            mv.visitVarInsn(ALOAD, offset);
+
             mv.visitInsn(DUP);
+            mv.visitInsn(ICONST_0);
+            mv.visitLdcInsn(mixinClass.getName()); // Pushes the class reference onto the stack
+            mv.visitInsn(AASTORE);
+
+            mv.visitInsn(DUP);
+            mv.visitInsn(ICONST_1);
+            mv.visitLdcInsn(mixinName); // Pushes the method name onto the stack
+            mv.visitInsn(AASTORE);
+
+            mv.visitInsn(DUP);
+            mv.visitInsn(ICONST_2);
+            mv.visitInsn(ACONST_NULL);
+            mv.visitInsn(AASTORE);
+
+            mv.visitInsn(DUP);
+            mv.visitInsn(ICONST_3);
+            mv.visitLdcInsn(parameters.length); // Push the number of parameters onto the stack
+            mv.visitTypeInsn(ANEWARRAY, "java/lang/String"); // Creates an empty array of Class references
+
+
+            for(int i = 0; i < parameters.length; i++) {
+                mv.visitInsn(DUP);
+                mv.visitLdcInsn(i);
+                mv.visitLdcInsn(parameters[i].getClassName());
+                mv.visitInsn(AASTORE);
+            }
+
+            mv.visitInsn(AASTORE);
+
+            mv.visitInsn(DUP);
+            mv.visitInsn(ICONST_4);
+            mv.visitLdcInsn(parameters.length); // Push the number of parameters onto the stack
+            mv.visitTypeInsn(ANEWARRAY, "java/lang/Object"); // Creates an empty array of Class references
+
+            mv.visitInsn(DUP);
+            mv.visitLdcInsn(0);
+            if(isTargetStatic) mv.visitInsn(ACONST_NULL);
+            else mv.visitVarInsn(ALOAD, 0);
+            mv.visitInsn(AASTORE);
+
+            loadArgs(parameters, isTargetStatic ? 1 : 0, 1, mv);
+            mv.visitInsn(AASTORE);
+
+            mv.visitVarInsn(ASTORE, offset);
+
+            setUpCallMethod(mv, offset);
+
+            mv.visitInsn(RETURN +500);
+        }
+    }
+
+    private static class ReturnValueMethodHandler {
+
+        public static void generateMethodBytecode(String mixinName, String descriptor, boolean isTargetStatic, Class<?> mixinClass, MethodVisitor mv, int type) {
+
+            Type[] parameters = getArgumentTypes(descriptor);
+            int offset = parameters.length;
+
+            mv.visitVarInsn(ASTORE - type, offset);
+
+            mv.visitInsn(ICONST_5);
+            mv.visitTypeInsn(ANEWARRAY, "java/lang/Object");
+            mv.visitVarInsn(ASTORE, offset +1);
+            mv.visitVarInsn(ALOAD, offset +1);
+
+            mv.visitInsn(DUP);
+            mv.visitInsn(ICONST_0);
+            mv.visitLdcInsn(mixinClass.getName()); // Pushes the class reference onto the stack
+            mv.visitInsn(AASTORE);
+
+            mv.visitInsn(DUP);
+            mv.visitInsn(ICONST_1);
+            mv.visitLdcInsn(mixinName); // Pushes the method name onto the stack
+            mv.visitInsn(AASTORE);
+
+            mv.visitInsn(DUP);
+            mv.visitInsn(ICONST_2);
+            mv.visitInsn(ACONST_NULL);
+            mv.visitInsn(AASTORE);
+
+
+            mv.visitLdcInsn(parameters.length); // Push the number of parameters onto the stack
+            mv.visitTypeInsn(ANEWARRAY, "java/lang/String"); // Creates an empty array of Class references
+            mv.visitVarInsn(ASTORE, offset +2);
+
+
+            //load parameters
+            for(int i = 0; i < parameters.length; i++) {
+                mv.visitVarInsn(ALOAD, offset +2);
+                mv.visitLdcInsn(i);
+                mv.visitLdcInsn(parameters[i].getClassName());
+                mv.visitInsn(AASTORE);
+            }
+
+            mv.visitVarInsn(ALOAD, offset +1);
+            mv.visitInsn(ICONST_3);
+            mv.visitVarInsn(ALOAD, offset +2);
+            mv.visitInsn(AASTORE);
+
+
+
+            mv.visitLdcInsn(parameters.length); // Push the number of parameters onto the stack
+            mv.visitTypeInsn(ANEWARRAY, "java/lang/Object"); // Creates an empty array of Class references
+            mv.visitVarInsn(ASTORE, offset +2);
+
+            mv.visitVarInsn(ALOAD, offset +2);
+            mv.visitLdcInsn(0);
+            if(isTargetStatic) mv.visitInsn(ACONST_NULL);
+            else mv.visitVarInsn(ALOAD, 0);
+            mv.visitInsn(AASTORE);
+
+            mv.visitVarInsn(ALOAD, offset +2);
             mv.visitLdcInsn(1);
-            mv.visitVarInsn(ALOAD - type, parameters.length);
-            if(ClassReflection.getPrimitiveClassByName(parameters[1].getClassName()) != null) {
+            mv.visitVarInsn(ALOAD - type, offset);
+            if(parameters[1].getInternalName().length() == 1) {
                 String className = Array.get(Array.newInstance(ClassReflection.getPrimitiveClassByName(parameters[1].getClassName()) ,1),0).getClass().getName().replace(".", "/");
 
                 mv.visitMethodInsn(INVOKESTATIC, className, "valueOf", "(" + parameters[1].getInternalName() + ")L" + className + ";", false);
             }
             mv.visitInsn(AASTORE);
 
-            loadArgs(parameters, 2, mv);
+            loadArgs(parameters, isTargetStatic ? 2 : 1, 2, mv);
 
-            mv.visitMethodInsn(INVOKESTATIC, "mixin/AbstractByteManipulator", "callMethod", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;[Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/Object;", false);
-            if(Type.getReturnType(descriptor).getSort() >= 9)  mv.visitTypeInsn(CHECKCAST, Type.getReturnType(descriptor).getInternalName());
+            mv.visitVarInsn(ALOAD, offset +1);
+            mv.visitInsn(ICONST_4);
+            mv.visitVarInsn(ALOAD, offset +2);
+            mv.visitInsn(AASTORE);
+
+            mv.visitVarInsn(ASTORE, offset);
+
+            setUpCallMethod(mv, offset);
+
+            if(Type.getReturnType(descriptor).getSort() >= 9) mv.visitTypeInsn(CHECKCAST, Type.getReturnType(descriptor).getInternalName());
             else castToPrimitive(Type.getReturnType(descriptor), mv);
+
+            mv.visitInsn((ARETURN - type) +500);
         }
     }
 }
