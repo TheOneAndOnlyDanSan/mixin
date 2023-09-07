@@ -142,22 +142,12 @@ public class MixinByteManipulator extends AbstractByteManipulator {
             mv.visitVarInsn(ASTORE, offset +1);
             mv.visitVarInsn(ALOAD, offset +1);
 
-            mv.visitInsn(DUP);
-            mv.visitInsn(ICONST_0);
-            mv.visitLdcInsn(targetClass.getName()); // Pushes the class reference onto the stack
-            mv.visitInsn(AASTORE);
-
-            mv.visitInsn(DUP);
-            mv.visitInsn(ICONST_1);
-            mv.visitLdcInsn(fieldName); // Pushes the method name onto the stack
-            mv.visitInsn(AASTORE);
-
-            mv.visitInsn(DUP);
-            mv.visitInsn(ICONST_2);
-            if(!isTargetStatic) mv.visitInsn(ACONST_NULL);
-            else mv.visitVarInsn(ALOAD, 0);
-            mv.visitInsn(AASTORE);
-
+            loadIntoArray(0, mv, () -> mv.visitLdcInsn(targetClass.getName()));
+            loadIntoArray(1, mv, () -> mv.visitLdcInsn(fieldName));
+            loadIntoArray(2, mv, () -> {
+                if(!isTargetStatic) mv.visitInsn(ACONST_NULL);
+                else mv.visitVarInsn(ALOAD, 0);
+            });
 
             mv.visitVarInsn(ALOAD, offset +1);
             mv.visitInsn(ICONST_3);
@@ -166,10 +156,8 @@ public class MixinByteManipulator extends AbstractByteManipulator {
 
 
             for(int i = 0; i < parameters.length; i++) {
-                mv.visitInsn(DUP);
-                mv.visitLdcInsn(i);
-                mv.visitLdcInsn(parameters[i].getClassName());
-                mv.visitInsn(AASTORE);
+                int finalI = i;
+                loadIntoArray(i, mv, () -> mv.visitLdcInsn(parameters[finalI].getClassName()));
             }
 
             mv.visitInsn(AASTORE);
@@ -199,55 +187,34 @@ public class MixinByteManipulator extends AbstractByteManipulator {
             mv.visitVarInsn(ASTORE, offset);
             mv.visitVarInsn(ALOAD, offset);
 
-            mv.visitInsn(DUP);
-            mv.visitInsn(ICONST_0);
-            mv.visitLdcInsn("mixin.bytemanipulators.AbstractByteManipulator");
-            mv.visitInsn(AASTORE);
+            loadIntoArray(0, mv, () -> mv.visitLdcInsn("mixin.bytemanipulators.AbstractByteManipulator"));
+            loadIntoArray(1, mv, () -> mv.visitLdcInsn("getField"));
+            loadIntoArray(2, mv, () -> mv.visitInsn(ACONST_NULL));
 
-            mv.visitInsn(DUP);
-            mv.visitInsn(ICONST_1);
-            mv.visitLdcInsn("getField");
-            mv.visitInsn(AASTORE);
-
-            mv.visitInsn(DUP);
-            mv.visitInsn(ICONST_2);
-            mv.visitInsn(ACONST_NULL);
-            mv.visitInsn(AASTORE);
 
             mv.visitInsn(DUP);
             mv.visitInsn(ICONST_3);
             mv.visitLdcInsn(3); // Push the number of parameters onto the stack
             mv.visitTypeInsn(ANEWARRAY, "java/lang/String"); // Creates an empty array of Class references
 
-
-            Class<?>[] classes = new Class[]{String.class, String.class, Object.class};
-            for(int i = 0; i < classes.length; i++) {
-                mv.visitInsn(DUP);
-                mv.visitLdcInsn(i);
-                mv.visitLdcInsn(getClassName(classes[i].getName()));
-                mv.visitInsn(AASTORE);
-            }
+            loadIntoArray(0, mv, () -> mv.visitLdcInsn(getClassName(String.class.getName())));
+            loadIntoArray(1, mv, () -> mv.visitLdcInsn(getClassName(String.class.getName())));
+            loadIntoArray(2, mv, () -> mv.visitLdcInsn(getClassName(Object.class.getName())));
 
             mv.visitInsn(AASTORE);
+
 
             mv.visitInsn(ICONST_4);
             mv.visitLdcInsn(3); // Push the number of parameters onto the stack
             mv.visitTypeInsn(ANEWARRAY, "java/lang/Object"); // Creates an empty array of Class references
 
-            Object[] args = new Object[]{targetClass.getName(), name};
+            loadIntoArray(0, mv, () -> mv.visitLdcInsn(targetClass.getName()));
+            loadIntoArray(1, mv, () -> mv.visitLdcInsn(name));
+            loadIntoArray(2, mv, () -> {
+                if(isTargetStatic) mv.visitInsn(ACONST_NULL);
+                else mv.visitVarInsn(ALOAD, 0);
+            });
 
-            for(int i = 0; i < args.length; i++) {
-                mv.visitInsn(DUP);
-                mv.visitLdcInsn(i);
-                mv.visitLdcInsn(args[i]);
-                mv.visitInsn(AASTORE);
-            }
-
-            mv.visitInsn(DUP);
-            mv.visitLdcInsn(args.length);
-            if(isTargetStatic) mv.visitInsn(ACONST_NULL);
-            else mv.visitVarInsn(ALOAD, 0);
-            mv.visitInsn(AASTORE);
 
             mv.visitInsn(AASTORE);
 

@@ -55,48 +55,32 @@ public class AbstractByteManipulator {
         mv.visitVarInsn(ALOAD, 2 + offset);
         mv.visitLdcInsn("theUnsafe");
         mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Class", "getDeclaredField", "(Ljava/lang/String;)Ljava/lang/reflect/Field;", false);
-        mv.visitVarInsn(Opcodes.ASTORE, 3 + offset);
-        mv.visitVarInsn(Opcodes.ALOAD, 3 + offset);
+        mv.visitInsn(DUP);
         mv.visitInsn(Opcodes.ICONST_1);
         mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/reflect/Field", "setAccessible", "(Z)V", false);
-        mv.visitVarInsn(Opcodes.ALOAD, 3 + offset);
         mv.visitInsn(Opcodes.ACONST_NULL);
         mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/reflect/Field", "get", "(Ljava/lang/Object;)Ljava/lang/Object;", false);
-        mv.visitVarInsn(ASTORE, 4 + offset);
+        mv.visitVarInsn(ASTORE, 3 + offset);
         mv.visitVarInsn(ALOAD, 2 + offset);
         mv.visitLdcInsn("putBoolean");
         mv.visitLdcInsn(3);
         mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Class");
-        mv.visitInsn(DUP);
-        mv.visitLdcInsn(0);
-        mv.visitLdcInsn(Type.getType("Ljava/lang/Object;"));
-        mv.visitInsn(AASTORE);
-        mv.visitInsn(DUP);
-        mv.visitLdcInsn(1);
-        mv.visitFieldInsn(GETSTATIC, "java/lang/Long", "TYPE", "Ljava/lang/Class;");
-        mv.visitInsn(AASTORE);
-        mv.visitInsn(DUP);
-        mv.visitLdcInsn(2);
-        mv.visitFieldInsn(GETSTATIC, "java/lang/Boolean", "TYPE", "Ljava/lang/Class;");
-        mv.visitInsn(AASTORE);
+        loadIntoArray(0, mv, () -> mv.visitLdcInsn(Type.getType("Ljava/lang/Object;")));
+        loadIntoArray(1, mv, () -> mv.visitFieldInsn(GETSTATIC, "java/lang/Long", "TYPE", "Ljava/lang/Class;"));
+        loadIntoArray(2, mv, () -> mv.visitFieldInsn(GETSTATIC, "java/lang/Boolean", "TYPE", "Ljava/lang/Class;"));
         mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Class", "getDeclaredMethod", "(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Method;", false);
-        mv.visitVarInsn(ALOAD, 4 + offset);
+        mv.visitVarInsn(ALOAD, 3 + offset);
         mv.visitLdcInsn(3);
         mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Object");
-        mv.visitInsn(DUP);
-        mv.visitLdcInsn(0);
-        mv.visitVarInsn(ALOAD, 1 + offset);
-        mv.visitInsn(AASTORE);
-        mv.visitInsn(DUP);
-        mv.visitLdcInsn(1);
-        mv.visitLdcInsn("12");
-        mv.visitMethodInsn(INVOKESTATIC, "java/lang/Long", "valueOf", "(Ljava/lang/String;)Ljava/lang/Long;", false);
-        mv.visitInsn(AASTORE);
-        mv.visitInsn(DUP);
-        mv.visitLdcInsn(2);
-        mv.visitLdcInsn("true");
-        mv.visitMethodInsn(INVOKESTATIC, "java/lang/Boolean", "valueOf", "(Ljava/lang/String;)Ljava/lang/Boolean;", false);
-        mv.visitInsn(AASTORE);
+        loadIntoArray(0, mv, () -> mv.visitVarInsn(ALOAD, 1 + offset));
+        loadIntoArray(1, mv, () -> {
+            mv.visitLdcInsn("12");
+            mv.visitMethodInsn(INVOKESTATIC, "java/lang/Long", "valueOf", "(Ljava/lang/String;)Ljava/lang/Long;", false);
+        });
+        loadIntoArray(2, mv, () -> {
+            mv.visitLdcInsn("true");
+            mv.visitMethodInsn(INVOKESTATIC, "java/lang/Boolean", "valueOf", "(Ljava/lang/String;)Ljava/lang/Boolean;", false);
+        });
         mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/reflect/Method", "invoke", "(Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;", false);
         mv.visitInsn(POP);
         mv.visitVarInsn(Opcodes.ALOAD, 1 + offset);
@@ -105,40 +89,30 @@ public class AbstractByteManipulator {
         mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Object");
         mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/reflect/Method", "invoke", "(Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;", false);
         mv.visitTypeInsn(Opcodes.CHECKCAST, "java/lang/ClassLoader");
-        mv.visitVarInsn(ASTORE, 6 + offset);
+        mv.visitVarInsn(ASTORE, 5 + offset);
         mv.visitLdcInsn("mixin.bytemanipulators.AbstractByteManipulator");
         mv.visitInsn(Opcodes.ICONST_1);
-        mv.visitVarInsn(Opcodes.ALOAD, 6 + offset);
+        mv.visitVarInsn(Opcodes.ALOAD, 5 + offset);
         mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Class", "forName", "(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;", false);
-        mv.visitVarInsn(Opcodes.ASTORE, 7 + offset);
-        mv.visitVarInsn(ALOAD, 7 + offset);
         mv.visitLdcInsn("callMethod");
         mv.visitInsn(Opcodes.ICONST_5);
         mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Class");
-        mv.visitInsn(Opcodes.DUP);
-        mv.visitInsn(Opcodes.ICONST_0);
-        mv.visitLdcInsn(Type.getType("Ljava/lang/String;"));
-        mv.visitInsn(Opcodes.AASTORE);
-        mv.visitInsn(Opcodes.DUP);
-        mv.visitInsn(Opcodes.ICONST_1);
-        mv.visitLdcInsn(Type.getType("Ljava/lang/String;"));
-        mv.visitInsn(Opcodes.AASTORE);
-        mv.visitInsn(Opcodes.DUP);
-        mv.visitInsn(Opcodes.ICONST_2);
-        mv.visitLdcInsn(Type.getType("Ljava/lang/Object;"));
-        mv.visitInsn(Opcodes.AASTORE);
-        mv.visitInsn(Opcodes.DUP);
-        mv.visitInsn(Opcodes.ICONST_3);
-        mv.visitLdcInsn(Type.getType("[Ljava/lang/String;"));
-        mv.visitInsn(Opcodes.AASTORE);
-        mv.visitInsn(Opcodes.DUP);
-        mv.visitInsn(Opcodes.ICONST_4);
-        mv.visitLdcInsn(Type.getType("[Ljava/lang/Object;"));
-        mv.visitInsn(Opcodes.AASTORE);
+        loadIntoArray(0, mv, () -> mv.visitLdcInsn(Type.getType("Ljava/lang/String;")));
+        loadIntoArray(1, mv, () -> mv.visitLdcInsn(Type.getType("Ljava/lang/String;")));
+        loadIntoArray(2, mv, () -> mv.visitLdcInsn(Type.getType("Ljava/lang/Object;")));
+        loadIntoArray(3, mv, () -> mv.visitLdcInsn(Type.getType("[Ljava/lang/String;")));
+        loadIntoArray(4, mv, () -> mv.visitLdcInsn(Type.getType("[Ljava/lang/Object;")));
         mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Class", "getDeclaredMethod", "(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Method;", false);
         mv.visitInsn(ACONST_NULL);
         mv.visitVarInsn(ALOAD, offset);
         mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/reflect/Method", "invoke", "(Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;", false);
+    }
+
+    public static void loadIntoArray(int index, MethodVisitor mv, Runnable value) {
+        mv.visitInsn(Opcodes.DUP);
+        mv.visitLdcInsn(index);
+        value.run();
+        mv.visitInsn(Opcodes.AASTORE);
     }
 
     public static Object callMethod(String className, String methodName, Object instance, String[] types, Object[] args) {
@@ -179,15 +153,15 @@ public class AbstractByteManipulator {
 
     static void loadArgs(Type[] parameters, int offset, int startIndex, MethodVisitor mv) {
         for(int i = startIndex; i < parameters.length; i++) {
-            mv.visitInsn(DUP);
-            mv.visitLdcInsn(i);
-            mv.visitVarInsn(ALOAD - getTypeOffset(parameters[i]) , i - offset);
-            if(parameters[i].getInternalName().length() == 1) {
-                String className = Array.get(Array.newInstance(ClassReflection.getPrimitiveClassByName(parameters[i].getClassName()) ,1),0).getClass().getName().replace(".", "/");
+            int finalI = i;
+            loadIntoArray(i, mv, () -> {
+                mv.visitVarInsn(ALOAD - getTypeOffset(parameters[finalI]) , finalI - offset);
+                if(parameters[finalI].getInternalName().length() == 1) {
+                    String className = Array.get(Array.newInstance(ClassReflection.getPrimitiveClassByName(parameters[finalI].getClassName()) ,1),0).getClass().getName().replace(".", "/");
 
-                mv.visitMethodInsn(INVOKESTATIC, className, "valueOf", "(" + parameters[i].getInternalName() + ")L" + className + ";", false);
-            }
-            mv.visitInsn(AASTORE);
+                    mv.visitMethodInsn(INVOKESTATIC, className, "valueOf", "(" + parameters[finalI].getInternalName() + ")L" + className + ";", false);
+                }
+            });
         }
     }
 

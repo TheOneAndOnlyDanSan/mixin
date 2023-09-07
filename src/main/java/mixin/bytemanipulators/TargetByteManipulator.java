@@ -254,20 +254,9 @@ public class TargetByteManipulator extends AbstractByteManipulator {
             mv.visitVarInsn(ASTORE, offset);
             mv.visitVarInsn(ALOAD, offset);
 
-            mv.visitInsn(DUP);
-            mv.visitInsn(ICONST_0);
-            mv.visitLdcInsn(mixinClass.getName()); // Pushes the class reference onto the stack
-            mv.visitInsn(AASTORE);
-
-            mv.visitInsn(DUP);
-            mv.visitInsn(ICONST_1);
-            mv.visitLdcInsn(mixinName); // Pushes the method name onto the stack
-            mv.visitInsn(AASTORE);
-
-            mv.visitInsn(DUP);
-            mv.visitInsn(ICONST_2);
-            mv.visitInsn(ACONST_NULL);
-            mv.visitInsn(AASTORE);
+            loadIntoArray(0, mv, () -> mv.visitLdcInsn(mixinClass.getName()));
+            loadIntoArray(1, mv, () -> mv.visitLdcInsn(mixinName));
+            loadIntoArray(2, mv, () -> mv.visitInsn(ACONST_NULL));
 
             mv.visitInsn(DUP);
             mv.visitInsn(ICONST_3);
