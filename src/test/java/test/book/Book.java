@@ -12,7 +12,7 @@ public class Book {
     private final int publishedYear;
 
     @Label("LabelCostAnnotation")
-    private final double cost;
+    private double cost;
 
     public Book(String name, int publishedYear, double cost) {
         this.name = name;
@@ -23,6 +23,10 @@ public class Book {
     @Label("LabelBookAnnotation")
     public Book get() {
         return this;
+    }
+
+    public void setCost(double cost) {
+        this.cost = cost;
     }
 
     @Override

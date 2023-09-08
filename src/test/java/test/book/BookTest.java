@@ -17,6 +17,7 @@ public class BookTest {
         methodAnnotationsWithout();
         shadowPrivateFieldWithout();
         shadowPrivateStaticFieldWithout();
+        injectHeadAndInjectTailTestWithout();
 
         ClassInjector.addClasses(BookMixin.class);
 
@@ -27,9 +28,26 @@ public class BookTest {
         shadowPrivateFieldWith();
         fieldWithoutAnnotationsWith();
         shadowPrivateStaticFieldWith();
+        injectHeadAndInjectTailTestWith();
     }
 
+    public void injectHeadAndInjectTailTestWithout() {
+        Book book = new Book("x", 1999, 100.1);
 
+        book.setCost(100);
+
+        assertNotEquals(100, BookMixin.injectHeadTestBool);
+        assertNotEquals(100, BookMixin.injectTailTestBool);
+    }
+
+    public void injectHeadAndInjectTailTestWith() {
+        Book book = new Book("x", 1999, 100.1);
+
+        book.setCost(100);
+
+        assertEquals(100, BookMixin.injectHeadTestBool);
+        assertEquals(100, BookMixin.injectTailTestBool);
+    }
 
     public void shadowPrivateStaticFieldWithout() {
         assertEquals(BookMixin.getStaticTestField(null), 0);

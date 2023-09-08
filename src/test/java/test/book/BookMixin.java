@@ -5,6 +5,9 @@ import mixin.Util;
 import mixin.annotations.Annotations;
 import mixin.annotations.Mixin;
 import mixin.annotations.Shadow;
+import mixin.annotations.method.ChangeReturn;
+import mixin.annotations.method.InjectHead;
+import mixin.annotations.method.InjectTail;
 import mixin.annotations.method.Overwrite;
 
 import java.lang.annotation.Annotation;
@@ -17,6 +20,9 @@ public class BookMixin {
 
     @Shadow static int publishedYear;
     @Shadow static double staticTestField;
+
+    public static double injectHeadTestBool;
+    public static double injectTailTestBool;
 
     public static double getStaticTestField(Book instance) {
         return staticTestField;
@@ -52,8 +58,18 @@ public class BookMixin {
         return new Annotation[]{label};
     }
 
-    @Overwrite("get()Ltest/book/Book;")
-    public static Book get(Book book1) {
-        return book;
+    @InjectHead("setCost(D)V")
+    public static void setHead(Book instance, double cost) {
+        injectHeadTestBool = cost;
+    }
+
+    @InjectTail("setCost(D)V")
+    public static void setTail(Book instance, double cost) {
+        injectTailTestBool = cost;
+    }
+
+    @ChangeReturn("get()Ltest/book/Book;")
+    public static Book get(Book instance, Book returnVal) {
+        return (returnVal != null && returnVal == instance) ? book : returnVal;
     }
 }

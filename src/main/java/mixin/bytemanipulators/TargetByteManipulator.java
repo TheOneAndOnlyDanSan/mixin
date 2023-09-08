@@ -168,7 +168,7 @@ public class TargetByteManipulator extends AbstractByteManipulator {
 
                                     if(mixinMethod.isAnnotationPresent(InjectHead.class)) {
                                         InjectHeadMethodHandler.generateMethodBytecode(mixinMethod.getName(), getDescriptor(mixinMethod), Modifier.isStatic(access), mixinClass, this);
-                                        super.visitCode();
+                                        visitInsn(POP);
                                     }
                                 });
                             }
@@ -188,6 +188,7 @@ public class TargetByteManipulator extends AbstractByteManipulator {
 
                                         if(mixinMethod.isAnnotationPresent(InjectTail.class)) {
                                             InjectHeadMethodHandler.generateMethodBytecode(mixinMethod.getName(), getDescriptor(mixinMethod), Modifier.isStatic(access), mixinClass, this);
+                                            super.visitInsn(RETURN);
                                         }
                                     });
                                 }
@@ -300,7 +301,7 @@ public class TargetByteManipulator extends AbstractByteManipulator {
         public static void generateMethodBytecode(String mixinName, String descriptor, boolean isTargetStatic, Class<?> mixinClass, MethodVisitor mv) {
 
             Type[] parameters = getArgumentTypes(descriptor);
-            int offset = parameters.length;
+            int offset = parameters.length + (isTargetStatic ? 0 : 1);
 
             mv.visitInsn(ICONST_5);
             mv.visitTypeInsn(ANEWARRAY, "java/lang/Object");
@@ -340,8 +341,6 @@ public class TargetByteManipulator extends AbstractByteManipulator {
             mv.visitInsn(AASTORE);
 
             setUpCallMethod(mv, offset);
-
-            mv.visitInsn(RETURN +500);
         }
     }
 
@@ -352,12 +351,12 @@ public class TargetByteManipulator extends AbstractByteManipulator {
             Type[] parameters = getArgumentTypes(descriptor);
             int offset = parameters.length;
 
-            mv.visitVarInsn(ASTORE - type, offset);
+            mv.visitVarInsn(ASTORE - type, offset +1);
 
             mv.visitInsn(ICONST_5);
             mv.visitTypeInsn(ANEWARRAY, "java/lang/Object");
-            mv.visitVarInsn(ASTORE, offset +1);
-            mv.visitVarInsn(ALOAD, offset +1);
+            mv.visitVarInsn(ASTORE, offset);
+            mv.visitVarInsn(ALOAD, offset);
 
             loadIntoArray(0, mv, () -> mv.visitLdcInsn(mixinClass.getName()));
             loadIntoArray(1, mv, () -> mv.visitLdcInsn(mixinName));
@@ -385,33 +384,23 @@ public class TargetByteManipulator extends AbstractByteManipulator {
             mv.visitInsn(ICONST_4);
             mv.visitLdcInsn(parameters.length); // Push the number of parameters onto the stack
             mv.visitTypeInsn(ANEWARRAY, "java/lang/Object"); // Creates an empty array of Class references
-            mv.visitVarInsn(ASTORE, offset +2);
 
             loadIntoArray(0, mv, () -> {
                 if(isTargetStatic) mv.visitInsn(ACONST_NULL);
                 else mv.visitVarInsn(ALOAD, 0);
             });
 
-            mv.visitVarInsn(ALOAD, offset +2);
-            mv.visitLdcInsn(1);
-            loadIntoArray(0, mv, () -> {
-                mv.visitVarInsn(ALOAD - type, offset);
+            loadIntoArray(1, mv, () -> {
+                mv.visitVarInsn(ALOAD - type, offset +1);
                 if(parameters[1].getInternalName().length() == 1) {
                     String className = Array.get(Array.newInstance(ClassReflection.getPrimitiveClassByName(parameters[1].getClassName()), 1), 0).getClass().getName().replace(".", "/");
 
                     mv.visitMethodInsn(INVOKESTATIC, className, "valueOf", "(" + parameters[1].getInternalName() + ")L" + className + ";", false);
                 }
             });
-            mv.visitInsn(AASTORE);
 
             loadArgs(parameters, isTargetStatic ? 2 : 1, 2, mv);
-
-            mv.visitVarInsn(ALOAD, offset +1);
-            mv.visitInsn(ICONST_4);
-            mv.visitVarInsn(ALOAD, offset +2);
             mv.visitInsn(AASTORE);
-
-            mv.visitVarInsn(ASTORE, offset);
 
             setUpCallMethod(mv, offset);
 
