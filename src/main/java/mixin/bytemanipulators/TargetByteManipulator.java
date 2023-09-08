@@ -307,20 +307,9 @@ public class TargetByteManipulator extends AbstractByteManipulator {
             mv.visitVarInsn(ASTORE, offset);
             mv.visitVarInsn(ALOAD, offset);
 
-            mv.visitInsn(DUP);
-            mv.visitInsn(ICONST_0);
-            mv.visitLdcInsn(mixinClass.getName()); // Pushes the class reference onto the stack
-            mv.visitInsn(AASTORE);
-
-            mv.visitInsn(DUP);
-            mv.visitInsn(ICONST_1);
-            mv.visitLdcInsn(mixinName); // Pushes the method name onto the stack
-            mv.visitInsn(AASTORE);
-
-            mv.visitInsn(DUP);
-            mv.visitInsn(ICONST_2);
-            mv.visitInsn(ACONST_NULL);
-            mv.visitInsn(AASTORE);
+            loadIntoArray(0, mv, () -> mv.visitLdcInsn(mixinClass.getName()));
+            loadIntoArray(1, mv, () -> mv.visitLdcInsn(mixinName));
+            loadIntoArray(2, mv, () -> mv.visitInsn(ACONST_NULL));
 
             mv.visitInsn(DUP);
             mv.visitInsn(ICONST_3);
@@ -342,16 +331,13 @@ public class TargetByteManipulator extends AbstractByteManipulator {
             mv.visitLdcInsn(parameters.length); // Push the number of parameters onto the stack
             mv.visitTypeInsn(ANEWARRAY, "java/lang/Object"); // Creates an empty array of Class references
 
-            mv.visitInsn(DUP);
-            mv.visitLdcInsn(0);
-            if(isTargetStatic) mv.visitInsn(ACONST_NULL);
-            else mv.visitVarInsn(ALOAD, 0);
-            mv.visitInsn(AASTORE);
+            loadIntoArray(0, mv, () -> {
+                if(isTargetStatic) mv.visitInsn(ACONST_NULL);
+                else mv.visitVarInsn(ALOAD, 0);
+            });
 
             loadArgs(parameters, isTargetStatic ? 1 : 0, 1, mv);
             mv.visitInsn(AASTORE);
-
-            mv.visitVarInsn(ASTORE, offset);
 
             setUpCallMethod(mv, offset);
 
@@ -373,60 +359,49 @@ public class TargetByteManipulator extends AbstractByteManipulator {
             mv.visitVarInsn(ASTORE, offset +1);
             mv.visitVarInsn(ALOAD, offset +1);
 
-            mv.visitInsn(DUP);
-            mv.visitInsn(ICONST_0);
-            mv.visitLdcInsn(mixinClass.getName()); // Pushes the class reference onto the stack
-            mv.visitInsn(AASTORE);
+            loadIntoArray(0, mv, () -> mv.visitLdcInsn(mixinClass.getName()));
+            loadIntoArray(1, mv, () -> mv.visitLdcInsn(mixinName));
+            loadIntoArray(2, mv, () -> mv.visitInsn(ACONST_NULL));
 
-            mv.visitInsn(DUP);
-            mv.visitInsn(ICONST_1);
-            mv.visitLdcInsn(mixinName); // Pushes the method name onto the stack
-            mv.visitInsn(AASTORE);
 
             mv.visitInsn(DUP);
-            mv.visitInsn(ICONST_2);
-            mv.visitInsn(ACONST_NULL);
-            mv.visitInsn(AASTORE);
-
-
+            mv.visitInsn(ICONST_3);
             mv.visitLdcInsn(parameters.length); // Push the number of parameters onto the stack
             mv.visitTypeInsn(ANEWARRAY, "java/lang/String"); // Creates an empty array of Class references
-            mv.visitVarInsn(ASTORE, offset +2);
 
 
             //load parameters
             for(int i = 0; i < parameters.length; i++) {
-                mv.visitVarInsn(ALOAD, offset +2);
+                mv.visitInsn(DUP);
                 mv.visitLdcInsn(i);
                 mv.visitLdcInsn(parameters[i].getClassName());
                 mv.visitInsn(AASTORE);
             }
 
-            mv.visitVarInsn(ALOAD, offset +1);
-            mv.visitInsn(ICONST_3);
-            mv.visitVarInsn(ALOAD, offset +2);
             mv.visitInsn(AASTORE);
 
 
-
+            mv.visitInsn(DUP);
+            mv.visitInsn(ICONST_4);
             mv.visitLdcInsn(parameters.length); // Push the number of parameters onto the stack
             mv.visitTypeInsn(ANEWARRAY, "java/lang/Object"); // Creates an empty array of Class references
             mv.visitVarInsn(ASTORE, offset +2);
 
-            mv.visitVarInsn(ALOAD, offset +2);
-            mv.visitLdcInsn(0);
-            if(isTargetStatic) mv.visitInsn(ACONST_NULL);
-            else mv.visitVarInsn(ALOAD, 0);
-            mv.visitInsn(AASTORE);
+            loadIntoArray(0, mv, () -> {
+                if(isTargetStatic) mv.visitInsn(ACONST_NULL);
+                else mv.visitVarInsn(ALOAD, 0);
+            });
 
             mv.visitVarInsn(ALOAD, offset +2);
             mv.visitLdcInsn(1);
-            mv.visitVarInsn(ALOAD - type, offset);
-            if(parameters[1].getInternalName().length() == 1) {
-                String className = Array.get(Array.newInstance(ClassReflection.getPrimitiveClassByName(parameters[1].getClassName()) ,1),0).getClass().getName().replace(".", "/");
+            loadIntoArray(0, mv, () -> {
+                mv.visitVarInsn(ALOAD - type, offset);
+                if(parameters[1].getInternalName().length() == 1) {
+                    String className = Array.get(Array.newInstance(ClassReflection.getPrimitiveClassByName(parameters[1].getClassName()), 1), 0).getClass().getName().replace(".", "/");
 
-                mv.visitMethodInsn(INVOKESTATIC, className, "valueOf", "(" + parameters[1].getInternalName() + ")L" + className + ";", false);
-            }
+                    mv.visitMethodInsn(INVOKESTATIC, className, "valueOf", "(" + parameters[1].getInternalName() + ")L" + className + ";", false);
+                }
+            });
             mv.visitInsn(AASTORE);
 
             loadArgs(parameters, isTargetStatic ? 2 : 1, 2, mv);
