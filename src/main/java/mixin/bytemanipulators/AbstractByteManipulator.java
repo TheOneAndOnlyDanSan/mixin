@@ -43,56 +43,10 @@ public class AbstractByteManipulator {
     }
 
     public static void setUpCallMethod(MethodVisitor mv, int offset) {
-        mv.visitLdcInsn(Type.getType("Ljava/lang/ClassLoader;"));
-        mv.visitLdcInsn("getBuiltinAppClassLoader");
-        mv.visitInsn(Opcodes.ICONST_0);
-        mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Class");
-        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Class", "getDeclaredMethod", "(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Method;", false);
-        mv.visitVarInsn(Opcodes.ASTORE, 1 + offset);
-        mv.visitLdcInsn("sun.misc.Unsafe");
-        mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Class", "forName", "(Ljava/lang/String;)Ljava/lang/Class;", false);
-        mv.visitVarInsn(Opcodes.ASTORE, 2 + offset);
-        mv.visitVarInsn(ALOAD, 2 + offset);
-        mv.visitLdcInsn("theUnsafe");
-        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Class", "getDeclaredField", "(Ljava/lang/String;)Ljava/lang/reflect/Field;", false);
-        mv.visitInsn(DUP);
-        mv.visitInsn(Opcodes.ICONST_1);
-        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/reflect/Field", "setAccessible", "(Z)V", false);
-        mv.visitInsn(Opcodes.ACONST_NULL);
-        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/reflect/Field", "get", "(Ljava/lang/Object;)Ljava/lang/Object;", false);
-        mv.visitVarInsn(ASTORE, 3 + offset);
-        mv.visitVarInsn(ALOAD, 2 + offset);
-        mv.visitLdcInsn("putBoolean");
-        mv.visitLdcInsn(3);
-        mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Class");
-        loadIntoArray(0, mv, () -> mv.visitLdcInsn(Type.getType("Ljava/lang/Object;")));
-        loadIntoArray(1, mv, () -> mv.visitFieldInsn(GETSTATIC, "java/lang/Long", "TYPE", "Ljava/lang/Class;"));
-        loadIntoArray(2, mv, () -> mv.visitFieldInsn(GETSTATIC, "java/lang/Boolean", "TYPE", "Ljava/lang/Class;"));
-        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/Class", "getDeclaredMethod", "(Ljava/lang/String;[Ljava/lang/Class;)Ljava/lang/reflect/Method;", false);
-        mv.visitVarInsn(ALOAD, 3 + offset);
-        mv.visitLdcInsn(3);
-        mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Object");
-        loadIntoArray(0, mv, () -> mv.visitVarInsn(ALOAD, 1 + offset));
-        loadIntoArray(1, mv, () -> {
-            mv.visitLdcInsn("12");
-            mv.visitMethodInsn(INVOKESTATIC, "java/lang/Long", "valueOf", "(Ljava/lang/String;)Ljava/lang/Long;", false);
-        });
-        loadIntoArray(2, mv, () -> {
-            mv.visitLdcInsn("true");
-            mv.visitMethodInsn(INVOKESTATIC, "java/lang/Boolean", "valueOf", "(Ljava/lang/String;)Ljava/lang/Boolean;", false);
-        });
-        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/reflect/Method", "invoke", "(Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;", false);
-        mv.visitInsn(POP);
-        mv.visitVarInsn(Opcodes.ALOAD, 1 + offset);
-        mv.visitInsn(ACONST_NULL);
-        mv.visitLdcInsn(0);
-        mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Object");
-        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL, "java/lang/reflect/Method", "invoke", "(Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;", false);
-        mv.visitTypeInsn(Opcodes.CHECKCAST, "java/lang/ClassLoader");
-        mv.visitVarInsn(ASTORE, 5 + offset);
         mv.visitLdcInsn("mixin.bytemanipulators.AbstractByteManipulator");
         mv.visitInsn(Opcodes.ICONST_1);
-        mv.visitVarInsn(Opcodes.ALOAD, 5 + offset);
+        mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Thread", "currentThread", "()Ljava/lang/Thread;", false);
+        mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Thread", "getContextClassLoader", "()Ljava/lang/ClassLoader;", false);
         mv.visitMethodInsn(Opcodes.INVOKESTATIC, "java/lang/Class", "forName", "(Ljava/lang/String;ZLjava/lang/ClassLoader;)Ljava/lang/Class;", false);
         mv.visitLdcInsn("callMethod");
         mv.visitInsn(Opcodes.ICONST_5);
