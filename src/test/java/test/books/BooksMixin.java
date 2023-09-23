@@ -7,7 +7,7 @@ import test.book.Book;
 
 import java.util.List;
 
-@Mixin(Books.class)
+@Mixin("test.books.Books")
 public class BooksMixin {
 
     @Shadow

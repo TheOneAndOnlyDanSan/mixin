@@ -5,6 +5,7 @@ import reflection.Vars;
 
 import java.lang.instrument.Instrumentation;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Hashtable;
 import java.util.List;
 
@@ -26,10 +27,14 @@ public class Agent {
         Vars.init();
     }
 
+    public static Class<?> getMixinedClass(Class<?> mixined) {
+        return Arrays.stream(agent.getAllLoadedClasses()).filter(c -> c.getName().equals(mixined.getAnnotation(Mixin.class).value())).toList().get(0);
+    }
+
     public static void addMixinClass(Class<?> clazz) {
         if(agent == null || !agent.isRetransformClassesSupported()) throw new IllegalStateException();
 
-        Class<?> targetClass = clazz.getAnnotation(Mixin.class).value();
+        Class<?> targetClass = getMixinedClass(clazz);
 
         if(!targetClass.isHidden() && !targetClass.isArray() && !targetClass.isPrimitive() && !targetClass.isAnonymousClass() && !targetClass.getName().equals("jdk.internal.vm.Continuation")) {
             if(mixinClasses.containsKey(targetClass)) throw new RuntimeException();

@@ -1,5 +1,6 @@
 package mixin.bytemanipulators;
 
+import mixin.Agent;
 import mixin.annotations.Shadow;
 import mixin.annotations.Mixin;
 import org.objectweb.asm.*;
@@ -29,7 +30,7 @@ public class MixinByteManipulator extends AbstractByteManipulator {
         this.mixinClass = mixinClass;
         this.originalByteCode = originalByteCode;
 
-        targetClass = mixinClass.getAnnotation(Mixin.class).value();
+        targetClass = Agent.getMixinedClass(mixinClass);
     }
 
     private List<Method> filterMethods(List<Method> methods, String name, String descriptor) {

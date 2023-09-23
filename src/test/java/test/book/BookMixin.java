@@ -14,7 +14,7 @@ import java.lang.annotation.Annotation;
 import java.util.HashMap;
 import java.util.Map;
 
-@Mixin(Book.class)
+@Mixin("test.book.Book")
 public class BookMixin {
     public static Book book = new Book("bookMixin", 2000, 101.1);
 
